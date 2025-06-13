@@ -62,18 +62,22 @@ model VerificationToken {
 
 model Conversation {
     id             String    @id @default(cuid())
-    title          String?
+    branchedId     String?
+    title          String    @default("New Chat")
     createdAt      DateTime  @default(now())
     updatedAt      DateTime  @updatedAt
-    userId         String?
+    userId         String
     contextSummary String    @default("")
     messages       Message[] @relation("ConversationMessages")
+
+    conversation  Conversation?  @relation("branchedConversations", fields: [branchedId], references: [id])
+    conversations Conversation[] @relation("branchedConversations")
 
     @@index([userId])
 }
 
 model Message {
-    id             String        @id @default(cuid())
+    id             Int           @id @default(autoincrement())
     conversationId String
     sender         MessageSender
     content        String
