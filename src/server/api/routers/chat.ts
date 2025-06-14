@@ -9,12 +9,13 @@ import OpenAI from "openai";
 // });
 
 export const chatRouter = createTRPCRouter({
-  createChat: protectedProcedure
+  createChat: publicProcedure
     .input(
-      z.object({ userId: z.string(), message: z.string(), model: z.string() }),
+      z.object({ userId: z.string(), message: z.string(), model: z.string() , label: z.string() }),
     )
     .mutation(async ({ ctx, input }) => {
-      const openai = new OpenAI({
+      if(input.label=="DeepSeek"){
+        const openai = new OpenAI({
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: process.env.OPENROUTER_API_KEY,
       });
@@ -40,7 +41,7 @@ export const chatRouter = createTRPCRouter({
         const conversation = await ctx.db.conversation.create({
           data: {
             userId: "12345",
-          }
+          },
         });
 
         // Save the user message
@@ -51,8 +52,8 @@ export const chatRouter = createTRPCRouter({
             content: input.message,
             meta: {
               model: input.model,
-            }
-          }
+            },
+          },
         });
 
         // Save the assistant's response
@@ -63,14 +64,74 @@ export const chatRouter = createTRPCRouter({
             content: completion.choices[0]?.message.content ?? "",
             meta: {
               model: input.model,
-            }
-          }
+            },
+          },
         });
 
-        return { content: completion.choices[0]?.message.content };
+        return { fullMessage: completion.choices[0]?.message.content };
       } catch (error: any) {
-        return { content: "Error: " + error.message };
+        return { fullMessage: "Error: " + error.message };
+      }
+      }
+      else if(input.label=="Nvidia"){
+        const client = new OpenAI({
+        baseURL : "https://integrate.api.nvidia.com/v1",
+        apiKey : process.env.NVIDIA_API_KEY
+      }
+      );
+
+      try{
+        const completion = await client.chat.completions.create({
+        model : input.model,
+        messages: [{"role":"user","content":input.message}],
+        temperature: 0.5,
+        top_p:1,
+        max_tokens:1024,
+        stream:true
+      })
+
+      // Create a new conversation and save the messages
+        const conversation = await ctx.db.conversation.create({
+          data: {
+            userId: "12345",
+          },
+        });
+
+        // Save the user message
+        await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "USER",
+            content: input.message,
+            meta: {
+              model: input.model,
+            },
+          },
+        });
+
+        let fullMessage = "";
+
+    for await (const chunk of completion) {
+      const content = chunk.choices?.[0]?.delta?.content;
+      if (content) fullMessage += content;
+    }
+
+        await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "ASSISTANT",
+            content: fullMessage ?? "",
+            meta: {
+              model: input.model,
+            },
+          },
+        });
+
+        return { fullMessage };
+      }catch (error: any) {
+        return { fullMessage: "Error: " + error.message };
       }
 
+      }
     }),
 });

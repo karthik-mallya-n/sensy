@@ -19,7 +19,7 @@ function HomeContent() {
   const [message, setMessage] = useState("Hi there");
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedButton, setSelectedButton] = useState(0);
+  const [selectedButton, setSelectedButton] = useState(1);
   
 
   const options = [
@@ -76,7 +76,7 @@ function HomeContent() {
               : "bg-gray-200 hover:bg-gray-300 text-gray-800"
           }`}
         >
-          DeepSeek
+          Model A
         </button>
         <button
           onClick={() => handleButton(1)}
@@ -86,7 +86,7 @@ function HomeContent() {
               : "bg-gray-200 hover:bg-gray-300 text-gray-800"
           }`}
         >
-          Nvidia
+          Model B
         </button>
       </div>
 
