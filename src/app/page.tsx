@@ -25,6 +25,7 @@ function HomeContent() {
   const options = [
     { label: "DeepSeek", model : "deepseek/deepseek-r1-0528-qwen3-8b:free" },
     { label: "Nvidia", model : "nvidia/llama-3.1-nemotron-70b-instruct" },
+    { label: "GPT-4o-Mini", model : "gpt-4o-mini"}
   ];
 
   const [obj,setOdj] = useState({
@@ -87,6 +88,16 @@ function HomeContent() {
           }`}
         >
           Nvidia
+        </button>
+        <button
+          onClick={() => handleButton(2)}
+          className={`font-medium py-2 px-4 rounded transition-colors duration-200 ${
+            selectedButton === 2
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+          }`}
+        >
+          GPT-4o-Mini
         </button>
       </div>
 
