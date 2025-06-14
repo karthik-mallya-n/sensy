@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
+import ResponseFormat from "./_components/ResponseFormat";
 
 // Wrapper component that provides the SessionProvider
 export default function Home() {
@@ -39,6 +40,7 @@ function HomeContent() {
     onSuccess: (data) => {
       //@ts-expect-error Will ot be null
       setResponse(data?.fullMessage);
+      console.log("Chat created successfully:", data?.fullMessage);
       setIsLoading(false);
     },
     onError: (error) => {
@@ -143,7 +145,7 @@ function HomeContent() {
       {response && !isLoading && (
         <div className="mt-4 rounded bg-gray-100 p-4">
           <p className="text-lg font-semibold">Response from Model:</p>
-          <p className="mt-2">{response}</p>
+          <ResponseFormat content={response} />
         </div>
       )}
     </main>
