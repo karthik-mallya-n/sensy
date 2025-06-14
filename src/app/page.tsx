@@ -25,7 +25,9 @@ function HomeContent() {
   const options = [
     { label: "DeepSeek", model : "deepseek/deepseek-r1-0528-qwen3-8b:free" },
     { label: "Nvidia", model : "nvidia/llama-3.1-nemotron-70b-instruct" },
-    { label: "GPT-4o-Mini", model : "gpt-4o-mini"}
+    { label: "GPT-4o-Mini", model : "gpt-4o-mini"},
+    { label: "Anthropic", model : "claude-sonnet-4-20250514"},
+
   ];
 
   const [obj,setOdj] = useState({
@@ -99,6 +101,18 @@ function HomeContent() {
         >
           GPT-4o-Mini
         </button>
+
+        <button
+          onClick={() => handleButton(3)}
+          className={`font-medium py-2 px-4 rounded transition-colors duration-200 ${
+            selectedButton === 3
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+          }`}
+        >
+          Claude-Sonnet-4-20250514
+        </button>
+        
       </div>
 
       <form onSubmit={handleSubmit} className="mb-6">
@@ -116,6 +130,7 @@ function HomeContent() {
           >
             {isLoading ? "Sending..." : "Send Message"}
           </button>
+
         </div>
       </form>
 

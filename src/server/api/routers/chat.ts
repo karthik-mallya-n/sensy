@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 // OPEN ROUTER'S API
 // const openai = new OpenAI({
@@ -136,22 +137,41 @@ export const chatRouter = createTRPCRouter({
         }
       } else if (input.label == "GPT-4o-Mini") {
         const openai = new OpenAI({
-          apiKey: process.env.GPT_4O_MINI_API_KEY ?? "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",
+          apiKey:
+            process.env.GPT_4O_MINI_API_KEY ??
+            "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",
         });
 
         try {
           const completion = await openai.chat.completions.create({
+            model: input.model,
+            store: true,
+            messages: [{ role: "user", content: input.message }],
+          });
+
+          return { fullMessage: completion.choices[0]?.message };
+        } catch (err: any) {
+          return { fullMessage: "Error : " + err.message };
+        }
+
+        // completion.then((result) => console.log(result.choices[0].message));
+      } else if (input.label == "Anthropic") {
+        const anthropic = new Anthropic({
+          apiKey: process.env.CLAUDE_API_KEY, // defaults to process.env["ANTHROPIC_API_KEY"]
+        });
+
+        try {
+          const msg = await anthropic.messages.create({
           model: input.model,
-          store: true,
+          max_tokens: 1024,
           messages: [{ role: "user", content: input.message }],
         });
-        
-          return { fullMessage : completion.choices[0]?.message}
+
+        return {fullMessage : msg}
+
         } catch (err : any) {
-          return { fullMessage : "Error : "+ err.message}
+          return {fullMessage : "Error : "+ err.message}
         }
-        
-        // completion.then((result) => console.log(result.choices[0].message));
       }
     }),
 });

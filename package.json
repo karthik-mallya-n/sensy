@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.54.0",
     "@auth/prisma-adapter": "^2.7.2",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -31,6 +32,7 @@
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
+    "anthropic-ai": "^0.0.10",
     "clsx": "^2.1.1",
     "framer-motion": "^12.17.0",
     "lucide-react": "^0.514.0",
