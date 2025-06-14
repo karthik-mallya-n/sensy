@@ -1,12 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure } from "../trpc";
 import OpenAI from "openai";
-
-// OPEN ROUTER'S API
-// const openai = new OpenAI({
-//   baseURL: "https://openrouter.ai/api/v1",
-//   apiKey: process.env.OPENROUTER_API_KEY,
-// });
 
 export const chatRouter = createTRPCRouter({
   createChat: publicProcedure
@@ -19,65 +13,110 @@ export const chatRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (input.label == "DeepSeek") {
+      const systemPrompt = `
+You are an AI assistant. Your *highest priority* is to return output in **valid, clean, and well-structured Markdown** that looks correct in any Markdown viewer or editor.
+
+✅ **Markdown formatting rules you must follow strictly**:
+- Use proper heading levels: \`#\`, \`##\`, \`###\`, etc., in the correct hierarchy. Never skip levels (e.g., don’t go from \`#\` directly to \`###\`).
+- Use lists with \`-\`, \`*\`, or ordered \`1.\`, \`2.\` etc. syntax. Indent subitems consistently with at least 2 spaces.
+- Always leave a blank line after headings and before/after lists or code blocks to ensure proper rendering.
+- if the user asks for code, always wrap it inside fenced code blocks using triple backticks (\\\`\\\`\\\`) and specify the correct language tag (e.g., \`java\`, \`python\`, \`javascript\`). Never provide inline or un-fenced code if it’s a block.
+- Inline code (e.g., \`variableName\`) should use single backticks.
+- If including blockquotes, tables, or links, ensure they follow valid Markdown syntax.
+
+❗ **Never output code, headings, lists, or other structures without proper Markdown syntax. Never mix styles within the same output (e.g., don’t switch between \`-\` and \`*\` in one list). Never sacrifice clarity for compactness.**
+
+---
+
+### **Example — Country and its wonders**
+## Egypt
+
+- Pyramids of Giza  
+- Sphinx of Giza  
+- Valley of the Kings  
+
+---
+
+### **Example — Code**
+
+\`\`\`java
+// Example Java code
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello, world!");
+    }
+}
+\`\`\`
+
+\`\`\`python
+# Example Python code
+def greet():
+    print("Hello, world!")
+greet()
+\`\`\`
+
+---
+
+⚠️ Always check your output structure to ensure it will render cleanly in Markdown. The **formatting is as important as the content**.
+`;
+
+
+
+      async function saveConversation(userMessage: string, assistantMessage: string) {
+        const conversation = await ctx.db.conversation.create({
+          data: {
+            userId: input.userId,
+          },
+        });
+
+        await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "USER",
+            content: userMessage,
+            meta: {
+              model: input.model,
+            },
+          },
+        });
+
+        await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "ASSISTANT",
+            content: assistantMessage,
+            meta: {
+              model: input.model,
+            },
+          },
+        });
+      }
+
+      if (input.label === "DeepSeek") {
         const openai = new OpenAI({
           baseURL: "https://openrouter.ai/api/v1",
           apiKey: process.env.OPENROUTER_API_KEY,
         });
 
         try {
-          // Create a chat completion using OpenRouter API
           const completion = await openai.chat.completions.create({
             model: input.model,
             messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "text",
-                    text: input.message,
-                  },
-                ],
-              },
+              { role: "system", content: systemPrompt },
+              { role: "user", content: input.message }, // FIXED: plain string content
             ],
           });
 
-          // Create a new conversation and save the messages
-          const conversation = await ctx.db.conversation.create({
-            data: {
-              userId: "12345",
-            },
-          });
+          const assistantMsg = completion.choices[0]?.message.content ?? "";
+          await saveConversation(input.message, assistantMsg);
 
-          // Save the user message
-          await ctx.db.message.create({
-            data: {
-              conversationId: conversation.id,
-              sender: "USER",
-              content: input.message,
-              meta: {
-                model: input.model,
-              },
-            },
-          });
-
-          // Save the assistant's response
-          await ctx.db.message.create({
-            data: {
-              conversationId: conversation.id,
-              sender: "ASSISTANT",
-              content: completion.choices[0]?.message.content ?? "",
-              meta: {
-                model: input.model,
-              },
-            },
-          });
-
-          return { fullMessage: completion.choices[0]?.message.content };
+          return { fullMessage: assistantMsg };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
-      } else if (input.label == "Nvidia") {
+      }
+
+      if (input.label === "Nvidia") {
         const client = new OpenAI({
           baseURL: "https://integrate.api.nvidia.com/v1",
           apiKey: process.env.NVIDIA_API_KEY,
@@ -86,72 +125,52 @@ export const chatRouter = createTRPCRouter({
         try {
           const completion = await client.chat.completions.create({
             model: input.model,
-            messages: [{ role: "user", content: input.message }],
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: input.message },
+            ],
             temperature: 0.5,
             top_p: 1,
             max_tokens: 1024,
             stream: true,
           });
 
-          // Create a new conversation and save the messages
-          const conversation = await ctx.db.conversation.create({
-            data: {
-              userId: "12345",
-            },
-          });
-
-          // Save the user message
-          await ctx.db.message.create({
-            data: {
-              conversationId: conversation.id,
-              sender: "USER",
-              content: input.message,
-              meta: {
-                model: input.model,
-              },
-            },
-          });
-
           let fullMessage = "";
-
           for await (const chunk of completion) {
             const content = chunk.choices?.[0]?.delta?.content;
             if (content) fullMessage += content;
           }
 
-          await ctx.db.message.create({
-            data: {
-              conversationId: conversation.id,
-              sender: "ASSISTANT",
-              content: fullMessage ?? "",
-              meta: {
-                model: input.model,
-              },
-            },
-          });
-
+          await saveConversation(input.message, fullMessage);
           return { fullMessage };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
-      } else if (input.label == "GPT-4o-Mini") {
+      }
+
+      if (input.label === "GPT-4o-Mini") {
         const openai = new OpenAI({
-          apiKey: process.env.GPT_4O_MINI_API_KEY ?? "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",
+          apiKey: process.env.GPT_4O_MINI_API_KEY ?? "sk-fallback-key",
         });
 
         try {
           const completion = await openai.chat.completions.create({
-          model: input.model,
-          store: true,
-          messages: [{ role: "user", content: input.message }],
-        });
-        
-          return { fullMessage : completion.choices[0]?.message}
-        } catch (err : any) {
-          return { fullMessage : "Error : "+ err.message}
+            model: input.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: input.message },
+            ],
+          });
+
+          const assistantMsg = completion.choices[0]?.message.content ?? "";
+          await saveConversation(input.message, assistantMsg);
+
+          return { fullMessage: assistantMsg };
+        } catch (error: any) {
+          return { fullMessage: "Error: " + error.message };
         }
-        
-        // completion.then((result) => console.log(result.choices[0].message));
       }
+
+      return { fullMessage: "Error: Unsupported model label" };
     }),
 });
