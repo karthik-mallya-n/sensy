@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
-import ResponseFormat from "./_components/ResponseFormat";
-
 
 // Wrapper component that provides the SessionProvider
 export default function Home() {
@@ -21,15 +19,12 @@ function HomeContent() {
   const [message, setMessage] = useState("Hi there");
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedButton, setSelectedButton] = useState(0);
+  const [selectedButton, setSelectedButton] = useState(1);
   
 
   const options = [
     { label: "DeepSeek", model : "deepseek/deepseek-r1-0528-qwen3-8b:free" },
     { label: "Nvidia", model : "nvidia/llama-3.1-nemotron-70b-instruct" },
-    { label: "GPT-4o-Mini", model : "gpt-4o-mini"},
-    { label: "Anthropic", model : "claude-sonnet-4-20250514"},
-
   ];
 
   const [obj,setOdj] = useState({
@@ -41,7 +36,6 @@ function HomeContent() {
     onSuccess: (data) => {
       //@ts-expect-error Will ot be null
       setResponse(data?.fullMessage);
-      console.log("Chat created successfully:", data?.fullMessage);
       setIsLoading(false);
     },
     onError: (error) => {
@@ -82,7 +76,7 @@ function HomeContent() {
               : "bg-gray-200 hover:bg-gray-300 text-gray-800"
           }`}
         >
-          DeepSeek
+          Model A
         </button>
         <button
           onClick={() => handleButton(1)}
@@ -92,30 +86,8 @@ function HomeContent() {
               : "bg-gray-200 hover:bg-gray-300 text-gray-800"
           }`}
         >
-          Nvidia
+          Model B
         </button>
-        <button
-          onClick={() => handleButton(2)}
-          className={`font-medium py-2 px-4 rounded transition-colors duration-200 ${
-            selectedButton === 2
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-          }`}
-        >
-          GPT-4o-Mini
-        </button>
-
-        <button
-          onClick={() => handleButton(3)}
-          className={`font-medium py-2 px-4 rounded transition-colors duration-200 ${
-            selectedButton === 3
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-          }`}
-        >
-          Claude-Sonnet-4-20250514
-        </button>
-        
       </div>
 
       <form onSubmit={handleSubmit} className="mb-6">
@@ -133,7 +105,6 @@ function HomeContent() {
           >
             {isLoading ? "Sending..." : "Send Message"}
           </button>
-
         </div>
       </form>
 
@@ -146,7 +117,7 @@ function HomeContent() {
       {response && !isLoading && (
         <div className="mt-4 rounded bg-gray-100 p-4">
           <p className="text-lg font-semibold">Response from Model:</p>
-          <ResponseFormat content={response} />
+          <p className="mt-2">{response}</p>
         </div>
       )}
     </main>

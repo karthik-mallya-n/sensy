@@ -14,18 +14,6 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    createdBy   User   @relation(fields: [createdById], references: [id])
-    createdById String
-
-    @@index([name])
-}
-
 // Necessary for Next auth
 model Account {
     id                       String  @id @default(cuid())
@@ -62,7 +50,6 @@ model User {
     image         String?
     accounts      Account[]
     sessions      Session[]
-    posts         Post[]
 }
 
 model VerificationToken {
@@ -71,4 +58,37 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+model Conversation {
+    id             String    @id @default(cuid())
+    branchedId     String?
+    title          String    @default("New Chat")
+    createdAt      DateTime  @default(now())
+    updatedAt      DateTime  @updatedAt
+    userId         String
+    contextSummary String    @default("")
+    messages       Message[] @relation("ConversationMessages")
+
+    conversation  Conversation?  @relation("branchedConversations", fields: [branchedId], references: [id])
+    conversations Conversation[] @relation("branchedConversations")
+
+    @@index([userId])
+}
+
+model Message {
+    id             Int           @id @default(autoincrement())
+    conversationId String
+    sender         MessageSender
+    content        String
+    createdAt      DateTime      @default(now())
+    meta           Json? // optional: for storing additional info (e.g. model used)
+
+    conversation Conversation @relation("ConversationMessages", fields: [conversationId], references: [id])
+}
+
+enum MessageSender {
+    USER
+    ASSISTANT
+    SYSTEM
 }

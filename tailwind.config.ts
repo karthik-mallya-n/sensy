@@ -7,6 +7,16 @@ const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      typography: ({ theme }) => ({
+        DEFAULT: {
+          css: {
+            h1: { fontSize: theme('fontSize.4xl') },
+            h2: { fontSize: theme('fontSize.3xl') },
+            h3: { fontSize: theme('fontSize.2xl') },
+            h4: { fontSize: theme('fontSize.xl') },
+          }
+        }
+      }),
       fontFamily: {
         sans: ["var(--font-geist-sans)"],
       },
@@ -53,7 +63,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [animatePlugin, scrollbar],
+  plugins: [animatePlugin, require('@tailwindcss/typography'), scrollbar],
 };
 
 export default config;
