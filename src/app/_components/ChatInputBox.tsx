@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { FiSearch, FiPaperclip, FiSend } from "react-icons/fi";
 import ModelSelector from "./ModelSelector";
 import { FancyButton } from "./FancyButton";
@@ -11,11 +11,29 @@ interface ChatInputBoxProps {
 
 export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const MIN_CHATBOX_HEIGHT = 140;
   const BOTTOM_ROW_HEIGHT = 64;
 
   const [chatboxHeight, setChatboxHeight] = useState(MIN_CHATBOX_HEIGHT);
   const [inputValue, setInputValue] = useState("");
+  const [boxWidth, setBoxWidth] = useState("calc(100% - 5rem)");
+
+  // Listen for chat container width changes
+  useEffect(() => {
+    const chatContainer = document.querySelector('.chat');
+    if (!chatContainer) return;
+
+    const observer = new ResizeObserver(() => {
+      const containerWidth = chatContainer.getBoundingClientRect().width;
+      // Set width to be slightly smaller than the container
+      const newWidth = Math.min(containerWidth - 32, 900); // 32px margin (16px on each side)
+      setBoxWidth(`${newWidth}px`);
+    });
+
+    observer.observe(chatContainer);
+    return () => observer.disconnect();
+  }, []);
 
   const handleInput = () => {
     if (textareaRef.current) {
@@ -50,10 +68,12 @@ export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
 
   return (
     <div
-      className="chatbox fixed bottom-7 left-1/2 transform -translate-x-1/2 bg-[#0D1919] border-[8px] border-[#1F2626]/50 rounded-2xl max-w-8xl"
+      ref={boxRef}
+      className="chatbox sticky bottom-7 mb-2 mx-auto bg-[#0D1919] border-[8px] border-[#1F2626]/50 rounded-2xl"
       style={{
         boxShadow: "0 4px 50px rgba(0,0,0,0.5)",
-        width: "900px",
+        width: boxWidth,
+        maxWidth: "900px",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -62,12 +82,13 @@ export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
         paddingLeft: "16px",
         paddingRight: "16px",
         rowGap: "12px",
-        transition: "height 0.2s ease",
+        transition: "height 0.2s ease, width 0.3s ease",
         height: `${chatboxHeight}px`,
         overflow: "hidden",
         backgroundImage: `url('/noise.png')`,
         backgroundSize: "cover",
         backgroundBlendMode: "multiply",
+        zIndex: 50
       }}
     >
       {/* Textarea wrapper */}

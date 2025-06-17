@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 import ChatArea from "~/app/_components/ChatArea";
 import ChatInputBox from "~/app/_components/ChatInputBox";
 import ThemeToggleButton from "./ThemeToggleButton";
@@ -26,20 +27,32 @@ export default function ChatContainer({
   showNavbar,
   smoothSidebarWidth,
 }: ChatContainerProps) {
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  // Update CSS variable for sidebar width to use in transform calculation
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--sidebar-width",
+      showNavbar ? `${smoothSidebarWidth}px` : "0px"
+    );
+  }, [showNavbar, smoothSidebarWidth]);
+
   return (
     <motion.div
-      className="h-full"
+      className="content h-full"
       style={{
         marginLeft: showNavbar ? smoothSidebarWidth : 0,
       }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
     >
       <div
-        className={`h-full pr-2.5 pt-2.5 pb-2.5 flex ${!showNavbar ? "pl-2.5" : ""
-          }`}
+        className={`chatarea h-full pr-2.5 pt-2.5 pb-2.5 flex ${
+          !showNavbar ? "pl-2.5" : ""
+        }`}
       >
         <div
-          className="chat flex-1 min-w-[400px] rounded-lg h-full overflow-auto relative border border-[#2D3838]"
+          ref={chatRef}
+          className="chat flex-1 min-w-[400px] rounded-lg h-full overflow-auto relative border border-[#2D3838] flex flex-col"
           style={{
             backgroundImage: `
                 linear-gradient(
@@ -57,8 +70,12 @@ export default function ChatContainer({
           }}
         >
           <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
+          <div className="flex-grow overflow-y-auto">
             <ChatArea messages={messages} />
+          </div>
+          <div className="flex-shrink-0">
             <ChatInputBox onSend={addUserMessage} />
+          </div>
         </div>
       </div>
     </motion.div>

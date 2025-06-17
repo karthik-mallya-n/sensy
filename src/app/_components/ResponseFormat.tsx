@@ -148,7 +148,7 @@ export default function ResponseFormat({ content }: { content: string }) {
             } else {
               return (
                 <code
-                  className="mx-0.5 rounded bg-gray-700 px-1.5 py-0.5 text-gray-100 font-mono text-xs"
+                  className="mx-0.5 rounded w-full bg-gray-700 px-1.5 py-0.5 text-gray-100 font-mono text-xs"
                   {...props}
                 >
                   {children}

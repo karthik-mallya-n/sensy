@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ResponseFormat from "./ResponseFormat";
 import { ClipboardIcon, CheckIcon } from "@heroicons/react/24/outline";
 
@@ -11,6 +11,14 @@ interface ChatMessage {
 
 export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const handleCopy = async (text: string, id: number) => {
     await navigator.clipboard.writeText(text);
@@ -20,10 +28,10 @@ export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
 
   return (
     <div
-      className="flex-1 pt-16 px-4 pb-40 flex flex-col gap-3 mx-auto w-full"
+      className="flex-1 pt-16 px-4 pb-48 flex flex-col gap-3 mx-auto w-full"
       style={{
-        maxHeight: "calc(100% - 140px)",
         maxWidth: "1700px",
+        position: "relative",
       }}
     >
       {messages.length === 0 && (
@@ -43,7 +51,7 @@ export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
             <div
               className={`pl-4 pr-4 pt-3 pb-3 rounded-xl break-words ${sender === "user"
                   ? "max-w-[75%] mx-97 mt-6 text-white text-left bg-[rgba(13,25,25,0.2)] backdrop-blur-xs border border-[#2D3838]/60 shadow-md"
-                  : "w-full mx-85 mt-3 text-white text-left bg-transparent"
+                  : "w-[1000px] mx-85 mt-3 text-white text-left bg-transparent"
                 }`}
             >
               {sender === "bot" ? (
@@ -75,6 +83,8 @@ export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
         </div>
       ))}
 
+      {/* Reference for scrolling to bottom */}
+      <div ref={messagesEndRef}></div>
     </div>
   );
 }
