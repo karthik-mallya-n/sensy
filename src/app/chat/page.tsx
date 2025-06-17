@@ -4,12 +4,22 @@ import { useState, useRef, useEffect } from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { FiMenu } from "react-icons/fi";
 import { FaChevronLeft } from "react-icons/fa";
+import { SessionProvider, useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
 
 import Sidebar from "../_components/Sidebar";
 import ChatContainer from "../_components/ChatContainer";
 import ChatResizeHandle from "../_components/ChatResizeHandle";
 
-export default function ChatPage() {
+export default function Home() {
+  return (
+    <SessionProvider>
+      <ChatPage />
+    </SessionProvider>
+  );
+}
+
+  function ChatPage() {
   const [navWidth, setNavWidth] = useState(240);
   const [showNavbar, setShowNavbar] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(true);
@@ -25,6 +35,8 @@ export default function ChatPage() {
 
   const sidebarMotion = useMotionValue(navWidth);
   const smoothSidebarWidth = useSpring(sidebarMotion, { damping: 25, stiffness: 200 });
+  
+  const { data: session } = useSession();
 
   useEffect(() => {
     sidebarMotion.set(navWidth);
@@ -57,6 +69,18 @@ export default function ChatPage() {
     }
   };
 
+  const createChatMutation = api.chat.createChat.useMutation({
+      onSuccess: (data) => {
+        console.log("Chat created successfully:", data?.fullMessage);
+        setTimeout(() => {
+      setMessages((prev) => [...prev, { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" }]);
+    }, 1000);
+      },
+      onError: (error) => {
+        console.error("Error creating chat:", error);
+      },
+    });
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
@@ -64,9 +88,13 @@ export default function ChatPage() {
   const addUserMessage = (text: string) => {
     const userMessage = { id: Date.now(), text, sender: "user" as const };
     setMessages((prev) => [...prev, userMessage]);
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { id: Date.now() + 1, text: `Bot reply to: "${text}"`, sender: "bot" }]);
-    }, 1000);
+    createChatMutation.mutate({
+      userId: session?.user.id ?? "",
+      message : text,
+      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      label: "DeepSeek"
+    });
+    
   };
 
   return (

@@ -1,5 +1,5 @@
 "use client";
-
+import ResponseFormat from "./ResponseFormat";
 interface ChatMessage {
   id: number;
   text: string;
@@ -30,7 +30,10 @@ export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
               : "self-start bg-transparent text-white text-left"
           }`}
         >
-          {text}
+           {sender === "bot" ? (
+            <ResponseFormat content={text} />
+          ) : (
+            <div>{text}</div> )}
         </div>
       ))}
     </div>

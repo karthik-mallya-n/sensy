@@ -2,13 +2,17 @@ import { Listbox, Transition, Portal } from '@headlessui/react';
 import { useState, useRef, useEffect, Fragment } from 'react';
 import { FiChevronDown } from 'react-icons/fi';
 
-const models = ["GPT-4-1 Mini", "GPT-4", "GPT-3.5", "GPT-Neo"];
-
 export default function ModelSelector() {
-  const [selectedModel, setSelectedModel] = useState(models[0]);
+   const options = [
+    { label: "DeepSeek", model : "deepseek/deepseek-r1-0528-qwen3-8b:free" },
+    { label: "Nvidia", model : "nvidia/llama-3.1-nemotron-70b-instruct" },
+    { label: "GPT-4o-Mini", model : "gpt-4o-mini"},
+    { label: "Anthropic", model : "claude-sonnet-4-20250514"},
+    { label: "Gemini", model : "Not necessary"}
+  ];
+  const [selectedModel, setSelectedModel] = useState(options[0]?.label);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-
   return (
     <Listbox value={selectedModel} onChange={setSelectedModel}>
       {({ open: isOpen }) => {
@@ -55,15 +59,15 @@ export default function ModelSelector() {
                   className="max-h-48 overflow-auto rounded-md py-1 text-sm shadow-xl focus:outline-none 
                  bg-[rgba(13,25,25,0.6)] backdrop-blur-xs border border-white/5"
                 >
-                  {models.map((model) => (
+                  {options.map((model,id) => (
                     <Listbox.Option
-                      key={model}
-                      value={model}
+                      key={id}
+                      value={model.label}
                       className={({ active }) =>
                         `cursor-pointer select-none py-2 px-3 ${active ? 'bg-[#0DC5C5] text-[#0D1919]' : 'text-[#A2BEBE]'}`
                       }
                     >
-                      {model}
+                      {model.label}
                     </Listbox.Option>
                   ))}
                 </Listbox.Options>
