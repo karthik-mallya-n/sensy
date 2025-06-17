@@ -5,6 +5,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import ResponseFormat from "./_components/ResponseFormat";
 
+
 // Wrapper component that provides the SessionProvider
 export default function Home() {
   return (
