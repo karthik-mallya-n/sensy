@@ -10,21 +10,27 @@ import { api } from "~/trpc/react";
 import Sidebar from "../_components/Sidebar";
 import ChatContainer from "../_components/ChatContainer";
 import ChatResizeHandle from "../_components/ChatResizeHandle";
+import { OptionProvider, useOption } from "../_components/OptionsContext";
+import { options } from "../_components/Options";
 
 export default function Home() {
   return (
     <SessionProvider>
-      <ChatPage />
+      <OptionProvider>
+        <ChatPage />
+      </OptionProvider>
     </SessionProvider>
   );
 }
 
-  function ChatPage() {
+function ChatPage() {
   const [navWidth, setNavWidth] = useState(240);
   const [showNavbar, setShowNavbar] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [messages, setMessages] = useState<{ id: number; text: string; sender: "user" | "bot" }[]>([]);
+  const [messages, setMessages] = useState<
+    { id: number; text: string; sender: "user" | "bot" }[]
+  >([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxSidebarWidth, setMaxSidebarWidth] = useState(0);
@@ -34,8 +40,11 @@ export default function Home() {
   const MAX_NAV_WIDTH = 850;
 
   const sidebarMotion = useMotionValue(navWidth);
-  const smoothSidebarWidth = useSpring(sidebarMotion, { damping: 25, stiffness: 200 });
-  
+  const smoothSidebarWidth = useSpring(sidebarMotion, {
+    damping: 25,
+    stiffness: 200,
+  });
+
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -46,7 +55,9 @@ export default function Home() {
     const updateMaxSidebar = () => {
       if (containerRef.current) {
         const containerWidth = containerRef.current.offsetWidth;
-        setMaxSidebarWidth(Math.min(containerWidth - MIN_CHAT_WIDTH, MAX_NAV_WIDTH));
+        setMaxSidebarWidth(
+          Math.min(containerWidth - MIN_CHAT_WIDTH, MAX_NAV_WIDTH),
+        );
       }
     };
     updateMaxSidebar();
@@ -70,44 +81,49 @@ export default function Home() {
   };
 
   const createChatMutation = api.chat.createChat.useMutation({
-      onSuccess: (data) => {
-        console.log("Chat created successfully:", data?.fullMessage);
-        setTimeout(() => {
-      setMessages((prev) => [...prev, { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" }]);
-    }, 1000);
-      },
-      onError: (error) => {
-        console.error("Error creating chat:", error);
-      },
-    });
+    onSuccess: (data) => {
+      console.log("Chat created successfully:", data?.fullMessage);
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" },
+        ]);
+      }, 1000);
+    },
+    onError: (error) => {
+      console.error("Error creating chat:", error);
+    },
+  });
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
+  const { selectedOption } = useOption();
+  const matchedOption = options.find(
+    (opt) => opt.model === selectedOption || opt.label === selectedOption,
+  );
   const addUserMessage = (text: string) => {
     const userMessage = { id: Date.now(), text, sender: "user" as const };
     setMessages((prev) => [...prev, userMessage]);
+    console.log(selectedOption, matchedOption?.label);
     createChatMutation.mutate({
       userId: session?.user.id ?? "",
-      message : text,
-      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
-      label: "DeepSeek"
+      message: text,
+      model: matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      label: selectedOption ?? "Deepseek",
     });
-    
   };
 
   return (
-    <div className="h-screen w-screen bg-[#162020] relative" ref={containerRef}>
+    <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
       <button
         onClick={toggleNavbar}
-        className={`fixed top-6 left-6 z-30 p-1.5 w-8 h-8 rounded-md flex items-center justify-center text-white shadow-lg transition-colors duration-200
-          ${
-            showNavbar && isNavExpanded
-              ? "bg-[#162020] hover:bg-[#2D3838] border border-transparent"
-              : "bg-[#0D1919] hover:bg-[#0E2626] border border-[#2D3838]"
-          }
-        `}
+        className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-white shadow-lg transition-colors duration-200 ${
+          showNavbar && isNavExpanded
+            ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
+            : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
+        } `}
         title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
         style={{ outline: "none" }}
       >
