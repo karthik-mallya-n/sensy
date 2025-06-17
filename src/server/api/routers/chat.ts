@@ -61,9 +61,10 @@ greet()
 ⚠️ Always check your output structure to ensure it will render cleanly in Markdown. The **formatting is as important as the content**.
 `;
 
-
-
-      async function saveConversation(userMessage: string, assistantMessage: string) {
+      async function saveConversation(
+        userMessage: string,
+        assistantMessage: string,
+      ) {
         const conversation = await ctx.db.conversation.create({
           data: {
             userId: input.userId,
@@ -161,9 +162,9 @@ greet()
             messages: [{ role: "user", content: input.message }],
           });
 
-          return { fullMessage: completion.choices[0]?.message }
+          return { fullMessage: completion.choices[0]?.message };
         } catch (err: any) {
-          return { fullMessage: "Error : " + err.message }
+          return { fullMessage: "Error : " + err.message };
         }
 
         // completion.then((result) => console.log(result.choices[0].message));
@@ -181,10 +182,36 @@ greet()
             messages: [{ role: "user", content: input.message }],
           });
 
-          return { fullMessage: msg }
-
+          return { fullMessage: msg };
         } catch (err: any) {
-          return { fullMessage: "Error : " + err.message }
+          return { fullMessage: "Error : " + err.message };
+        }
+      }
+
+      if (input.label === "Gemini") {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: input.message }],
+                  },
+                ],
+              }),
+            },
+          );
+
+          const data = await res.json();
+          const content : string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content"; 
+          return {fullMessage : content}
+        } catch (err : any) {
+          return {fullMessage : err.message}
         }
       }
     }),
