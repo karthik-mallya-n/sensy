@@ -6,29 +6,25 @@ const models = ["GPT-4-1 Mini", "GPT-4", "GPT-3.5", "GPT-Neo"];
 
 export default function ModelSelector() {
   const [selectedModel, setSelectedModel] = useState(models[0]);
-  const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-
-  useEffect(() => {
-    if (open && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: 'fixed',
-        top: rect.top - 4, // margin between dropdown and button
-        left: rect.left,
-        width: rect.width,
-        transform: 'translateY(-100%)', // position above button
-        zIndex: 1000,
-      });
-    }
-  }, [open]);
 
   return (
     <Listbox value={selectedModel} onChange={setSelectedModel}>
       {({ open: isOpen }) => {
-        // sync internal open state with headlessui's
-        if (open !== isOpen) setOpen(isOpen);
+        useEffect(() => {
+          if (isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownStyle({
+              position: 'fixed',
+              top: rect.top - 4, // margin between dropdown and button
+              left: rect.left,
+              width: rect.width,
+              transform: 'translateY(-100%)', // position above button
+              zIndex: 1000,
+            });
+          }
+        }, [isOpen]);
 
         return (
           <div className="relative w-40">
@@ -57,22 +53,20 @@ export default function ModelSelector() {
                   static
                   style={dropdownStyle}
                   className="max-h-48 overflow-auto rounded-md py-1 text-sm shadow-xl focus:outline-none 
-             bg-[rgba(13,25,25,0.6)] backdrop-blur-xs border border-white/5"
+                 bg-[rgba(13,25,25,0.6)] backdrop-blur-xs border border-white/5"
                 >
                   {models.map((model) => (
                     <Listbox.Option
                       key={model}
                       value={model}
                       className={({ active }) =>
-                        `cursor-pointer select-none py-2 px-3 ${active ? 'bg-[#0DC5C5] text-[#0D1919]' : 'text-[#A2BEBE]'
-                        }`
+                        `cursor-pointer select-none py-2 px-3 ${active ? 'bg-[#0DC5C5] text-[#0D1919]' : 'text-[#A2BEBE]'}`
                       }
                     >
                       {model}
                     </Listbox.Option>
                   ))}
                 </Listbox.Options>
-
               </Transition>
             </Portal>
           </div>
