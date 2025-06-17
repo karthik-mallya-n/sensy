@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 
-export default function NewChatButton({ isNavExpanded ,clickMe}: { isNavExpanded: boolean , clickMe : ()=>void}) {
+export default function LogInOut({ isNavExpanded ,text,clickMe}: { isNavExpanded: boolean ,text : string ,clickMe : ()=>void}) {
   return (
     <motion.button
       whileHover={{
@@ -16,7 +16,7 @@ export default function NewChatButton({ isNavExpanded ,clickMe}: { isNavExpanded
           "linear-gradient(90deg, rgba(7, 115, 115, 1) 0%, rgba(1, 82, 82, 1) 100%)",
       }}
     >
-      {isNavExpanded && <span>New Chat</span>}
+      {isNavExpanded && <span>{text}</span>}
     </motion.button>
   );
 }

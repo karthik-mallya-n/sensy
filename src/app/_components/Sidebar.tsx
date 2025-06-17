@@ -32,7 +32,7 @@ export default function Sidebar({
         </div>
 
         <div className="px-4 mb-4">
-          <NewChatButton isNavExpanded={isNavExpanded} />
+          <NewChatButton isNavExpanded={isNavExpanded}  clickMe={()=>{console.log("Hi")}}/>
         </div>
 
         <div className="px-4 mb-6">
