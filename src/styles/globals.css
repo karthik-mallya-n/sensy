@@ -4,3 +4,312 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
+
+textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+  background-color: #47585e; /* gray thumb */
+  border-radius: 4px;
+}
+
+textarea::-webkit-scrollbar-track {
+  background-color: transparent; /* dark track */
+}
+
+.chat {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.chat::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------
+   FancyButton styles from Uiverse
+   ------------------------------ */
+@layer components {
+  .fancy-button {
+    height: 32px;
+    width: 35px;
+    --round: 0.35rem;
+    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  transition: all 0.6s ease;
+  transform-origin: left; /* makes it expand to the right */
+    background: #066262; /* static solid background */
+    border-radius: var(--round);
+    border: none;
+    outline: none;
+    padding: 10px 10px;
+  }
+
+  /* Active state styles */
+  .fancy-button.active {
+    background: radial-gradient(
+        80% 80% at 50% 100%,
+        rgba(15, 233, 233, 0.9) 0%,
+        rgba(0, 178, 178, 0) 100%
+      ),
+      linear-gradient(0deg, #00A7A7, #00B2B2);
+    box-shadow: 0 0 10px 2px rgba(0, 178, 178, 0.2);
+  }
+
+  .fancy-button::before,
+  .fancy-button::after {
+    content: "";
+    position: absolute;
+    inset: var(--space);
+    transition: all 0.5s ease-in-out;
+    border-radius: calc(var(--round) - var(--space));
+    z-index: 0;
+  }
+
+.fancy-button::before,
+.fancy-button::after {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.fancy-button:hover::before,
+.fancy-button.active::before,
+.fancy-button:hover::after,
+.fancy-button.active::after {
+  opacity: 1;
+}
+
+  .fancy-button.active::after {
+    background: radial-gradient(
+        80% 80% at 50% 100%,
+        rgba(15, 233, 233, 0.9) 0%,
+        rgba(0, 178, 178, 0) 100%
+      ),
+      linear-gradient(0deg, #00A7A7, #00B2B2);
+  }
+
+  .fancy-button:active {
+    transform: scale(0.95);
+  }
+
+  .points_wrapper {
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    position: absolute;
+    z-index: 1;
+    opacity: 0; /* hide points by default */
+    transition: opacity 0.3s ease;
+  }
+
+  /* Show points only when active */
+  .fancy-button.active .points_wrapper {
+    opacity: 1;
+  }
+
+.fancy-button:hover,
+.fancy-button.active {
+  width: 100px;
+  justify-content: space-between; /* or center if you prefer */
+}
+
+  .point {
+    bottom: -10px;
+    position: absolute;
+    animation: floating-points infinite ease-in-out;
+    pointer-events: none;
+    width: 2px;
+    height: 2px;
+    background-color: #fff;
+    border-radius: 9999px;
+  }
+
+  .point:nth-child(1) {
+    left: 10%;
+    opacity: 1;
+    animation-duration: 2.35s;
+    animation-delay: 0.2s;
+  }
+  .point:nth-child(2) {
+    left: 30%;
+    opacity: 0.7;
+    animation-duration: 2.5s;
+    animation-delay: 0.5s;
+  }
+  .point:nth-child(3) {
+    left: 25%;
+    opacity: 0.8;
+    animation-duration: 2.2s;
+    animation-delay: 0.1s;
+  }
+  .point:nth-child(4) {
+    left: 44%;
+    opacity: 0.6;
+    animation-duration: 2.05s;
+  }
+  .point:nth-child(5) {
+    left: 50%;
+    opacity: 1;
+    animation-duration: 1.9s;
+  }
+  .point:nth-child(6) {
+    left: 75%;
+    opacity: 0.5;
+    animation-duration: 1.5s;
+    animation-delay: 1.5s;
+  }
+  .point:nth-child(7) {
+    left: 88%;
+    opacity: 0.9;
+    animation-duration: 2.2s;
+    animation-delay: 0.2s;
+  }
+  .point:nth-child(8) {
+    left: 58%;
+    opacity: 0.8;
+    animation-duration: 2.25s;
+    animation-delay: 0.2s;
+  }
+  .point:nth-child(9) {
+    left: 98%;
+    opacity: 0.6;
+    animation-duration: 2.6s;
+    animation-delay: 0.1s;
+  }
+  .point:nth-child(10) {
+    left: 65%;
+    opacity: 1;
+    animation-duration: 2.5s;
+    animation-delay: 0.2s;
+  }
+
+  .inner {
+    z-index: 2;
+    gap: 6px;
+    position: relative;
+    width: 100%;
+    color: #0D1919;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+    transition: color 0.2s ease-in-out;
+  }
+
+.icon {
+  width: 18px;
+  height: 18px;
+  stroke-dasharray: 80;
+  stroke-dashoffset: 0; /* show stroke initially */
+  transition: fill 0.1s ease, stroke-dashoffset 0.1s ease;
+    flex-shrink: 0; /* Prevent it from shrinking */
+  transition: stroke 0.1s , transform 0.1s ease;
+  fill: none; /* no fill, only stroke visible */
+  stroke: #A2BEBE;
+}
+
+.fancy-button:not(:hover):not(.active) .icon {
+  padding-left: 4px;
+    width: 22px;
+  height: 22px; /* or adjust as needed */
+}
+.fancy-button .icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transition: stroke 0.3s ease, transform 0.3s ease, padding 0.3s ease;
+  padding-left: 0; /* default */
+}
+
+  .fancy-button:focus .icon {
+    color: #A2BEBE;
+  }
+
+  .fancy-button:hover .icon {
+    fill: transparent;
+    animation:
+      dasharray 0.6s linear forwards,
+      filled 0.1s linear forwards 0.5s;
+  }
+
+  .fancy-button.active .icon {
+      stroke: #0D1919;
+    fill: none;
+    animation:
+      dasharray 1s linear forwards,
+      filled 0.1s linear forwards 0.95s;
+  }
+
+.fancy-button .inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  transition: color 0.3s ease;
+  position: relative;
+  z-index: 2;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #A2BEBE;
+}
+
+.fancy-button .inner span {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+/* Show text on hover or active */
+.fancy-button:hover .inner span,
+.fancy-button.active .inner span {
+  opacity: 1;
+  max-width: 100px;
+}
+
+.fancy-button.active .inner {
+  color: #0D1919; /* Active state */
+}
+
+
+
+  @keyframes floating-points {
+    0% {
+      transform: translateY(0);
+    }
+    85% {
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(-55px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes dasharray {
+    from {
+      stroke-dashoffset: 80;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes filled {
+    to {
+      fill: transparent;
+    }
+  }
+}
