@@ -10,12 +10,12 @@ const config: Config = {
       typography: ({ theme }) => ({
         DEFAULT: {
           css: {
-            h1: { fontSize: theme('fontSize.4xl') },
-            h2: { fontSize: theme('fontSize.3xl') },
-            h3: { fontSize: theme('fontSize.2xl') },
-            h4: { fontSize: theme('fontSize.xl') },
-          }
-        }
+            h1: { fontSize: theme("fontSize.4xl") },
+            h2: { fontSize: theme("fontSize.3xl") },
+            h3: { fontSize: theme("fontSize.2xl") },
+            h4: { fontSize: theme("fontSize.xl") },
+          },
+        },
       }),
       fontFamily: {
         sans: ["var(--font-geist-sans)"],
@@ -41,7 +41,7 @@ const config: Config = {
         "fade-out": "fade-out 200ms ease-in-out",
         "slide-in-from-top": "slide-in-from-top 200ms ease-in-out",
         "slide-out-to-top": "slide-out-to-top 200ms ease-in-out",
-        "spin-slow": "spin 2s linear infinite", // ✅ Add this line
+        "spin-slow": "spin 2s linear infinite",
       },
       keyframes: {
         "fade-in": {
@@ -63,7 +63,11 @@ const config: Config = {
       },
     },
   },
-  plugins: [animatePlugin, require('@tailwindcss/typography'), scrollbar],
+  plugins: [
+    animatePlugin,
+    require("@tailwindcss/typography"),
+    scrollbar({ nocompatible: true }), // ✅ This enables full modern support
+  ],
 };
 
 export default config;

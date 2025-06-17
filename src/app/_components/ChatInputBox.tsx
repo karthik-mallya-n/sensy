@@ -50,7 +50,7 @@ export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
 
   return (
     <div
-      className="chatbox absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-[#0D1919] border-[8px] border-[#1F2626]/50 rounded-2xl max-w-8xl"
+      className="chatbox fixed bottom-7 left-1/2 transform -translate-x-1/2 bg-[#0D1919] border-[8px] border-[#1F2626]/50 rounded-2xl max-w-8xl"
       style={{
         boxShadow: "0 4px 50px rgba(0,0,0,0.5)",
         width: "900px",

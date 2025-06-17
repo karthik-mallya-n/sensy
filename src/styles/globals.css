@@ -283,6 +283,24 @@ textarea::-webkit-scrollbar-track {
   color: #0D1919; /* Active state */
 }
 
+/* Custom scrollbar colors for syntax highlighter and others */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #1f2626;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #47585e;
+  border-radius: 4px;
+  border: 2px solid #1f2626;
+}
+
+
+
 
 
   @keyframes floating-points {

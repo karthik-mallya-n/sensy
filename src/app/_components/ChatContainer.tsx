@@ -28,16 +28,15 @@ export default function ChatContainer({
 }: ChatContainerProps) {
   return (
     <motion.div
-      className="content h-full"
+      className="h-full"
       style={{
         marginLeft: showNavbar ? smoothSidebarWidth : 0,
       }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
     >
       <div
-        className={`chatarea h-full pr-2.5 pt-2.5 pb-2.5 flex ${
-          !showNavbar ? "pl-2.5" : ""
-        }`}
+        className={`h-full pr-2.5 pt-2.5 pb-2.5 flex ${!showNavbar ? "pl-2.5" : ""
+          }`}
       >
         <div
           className="chat flex-1 min-w-[400px] rounded-lg h-full overflow-auto relative border border-[#2D3838]"
@@ -58,8 +57,8 @@ export default function ChatContainer({
           }}
         >
           <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
-          <ChatArea messages={messages} />
-          <ChatInputBox onSend={addUserMessage} />
+            <ChatArea messages={messages} />
+            <ChatInputBox onSend={addUserMessage} />
         </div>
       </div>
     </motion.div>
