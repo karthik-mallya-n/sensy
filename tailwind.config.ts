@@ -1,8 +1,8 @@
 import { type Config } from "tailwindcss";
 import animatePlugin from "tailwindcss-animate";
+import scrollbar from "tailwind-scrollbar";
 
-/** @type {import('tailwindcss').Config} */
-export default {
+const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
@@ -26,11 +26,12 @@ export default {
         },
       },
       animation: {
-        "pulse": "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        pulse: "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "fade-in": "fade-in 200ms ease-in-out",
         "fade-out": "fade-out 200ms ease-in-out",
         "slide-in-from-top": "slide-in-from-top 200ms ease-in-out",
         "slide-out-to-top": "slide-out-to-top 200ms ease-in-out",
+        "spin-slow": "spin 2s linear infinite", // ✅ Add this line
       },
       keyframes: {
         "fade-in": {
@@ -52,5 +53,7 @@ export default {
       },
     },
   },
-  plugins: [animatePlugin],
-} satisfies Config;
+  plugins: [animatePlugin, scrollbar],
+};
+
+export default config;
