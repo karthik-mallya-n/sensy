@@ -1,12 +1,41 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const chatRouter = createTRPCRouter({
-  createChat: publicProcedure
+  // Get all chats for a user
+  getChats: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const conversations = await ctx.db.conversation.findMany({
+        where: { userId: input.userId }
+      });
+      return conversations;
+    }),
+
+  // Get messages for a specific chat
+  getMessagesForChat: protectedProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const messages = await ctx.db.messageResponsePair.findMany({
+        where: { conversationId: input.conversationId },
+        include: {
+          userMessage: true,
+          assistantMessage: true,
+          conversation: true,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      return messages;
+    }),
+
+  // Create a new chat
+  createChat: protectedProcedure
     .input(
       z.object({
+        conversationId: z.string().optional(),
         userId: z.string(),
         message: z.string(),
         model: z.string(),
@@ -67,29 +96,34 @@ greet()
       ) {
         const conversation = await ctx.db.conversation.create({
           data: {
+            branchedId: input.conversationId ?? undefined,
             userId: input.userId,
+            model: input.model,
           },
         });
 
-        await ctx.db.message.create({
+        const user = await ctx.db.message.create({
           data: {
             conversationId: conversation.id,
             sender: "USER",
             content: userMessage,
-            meta: {
-              model: input.model,
-            },
+
           },
         });
 
-        await ctx.db.message.create({
+        const assistant = await ctx.db.message.create({
           data: {
             conversationId: conversation.id,
             sender: "ASSISTANT",
             content: assistantMessage,
-            meta: {
-              model: input.model,
-            },
+          },
+        });
+
+        await ctx.db.messageResponsePair.create({
+          data: {
+            conversationId: conversation.id,
+            userMessageId: user.id,
+            assistantMessageId: assistant.id,
           },
         });
       }
@@ -208,11 +242,207 @@ greet()
           );
 
           const data = await res.json();
-          const content : string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content"; 
-          return {fullMessage : content}
-        } catch (err : any) {
-          return {fullMessage : err.message}
+          const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
+          await saveConversation(input.message, content);
+          return { fullMessage: content }
+        } catch (err: any) {
+          return { fullMessage: err.message }
         }
       }
     }),
+
+  // Delete a chat
+  deleteChat: protectedProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.conversation.delete({
+        where: { id: input.conversationId },
+      });
+      return { success: true };
+    }),
+
+  // Update user message and regenerate assistant response
+  updateUserMessage: protectedProcedure
+    .input(
+      z.object({
+        messageId: z.string(),
+        label: z.string(),
+        model: z.string(),
+        newUserMessage: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const pair = await ctx.db.messageResponsePair.findUnique({
+        where: { userMessageId: input.messageId },
+        include: {
+          conversation: true,
+          userMessage: true,
+          assistantMessage: true,
+        },
+      });
+
+      if (!pair) throw new Error("Message pair not found");
+
+      // Update user message content
+      await ctx.db.message.update({
+        where: { id: pair.userMessageId },
+        data: { content: input.newUserMessage },
+      });
+
+      // Fetch previous messages for context
+      const messages = await ctx.db.message.findMany({
+        where: { conversationId: pair.conversationId },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const chatHistory = messages.map((msg) => ({
+        role:
+          msg.sender === "USER" ? "user" : msg.sender === "ASSISTANT" ? "assistant" : "system",
+        content: msg.content,
+      }));
+
+      // Replace this user's message in chat history
+      const index = chatHistory.findIndex((m) => m.role === "user" && m.content === pair.userMessage.content);
+      if (index !== -1) {
+        chatHistory[index] = {
+          role: "user",
+          content: input.newUserMessage,
+        };
+      }
+
+      let newAssistantContent = "";
+
+      if (input.label === "DeepSeek") {
+        const openai = new OpenAI({
+          baseURL: "https://openrouter.ai/api/v1",
+          apiKey: process.env.OPENROUTER_API_KEY,
+        });
+
+        const completion = await openai.chat.completions.create({
+          model: input.model,
+          // @ts-ignore
+          messages: chatHistory,
+        });
+
+        newAssistantContent = completion.choices[0]?.message.content ?? "";
+      }
+
+      else if (input.label === "Nvidia") {
+        const client = new OpenAI({
+          baseURL: "https://integrate.api.nvidia.com/v1",
+          apiKey: process.env.NVIDIA_API_KEY,
+        });
+
+        const completion = await client.chat.completions.create({
+          model: input.model,
+          // @ts-ignore
+          messages: chatHistory,
+          temperature: 0.5,
+          top_p: 1,
+          max_tokens: 1024,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) newAssistantContent += content;
+        }
+      }
+
+      else if (input.label === "GPT-4o-Mini") {
+        const openai = new OpenAI({
+          apiKey: process.env.GPT_4O_MINI_API_KEY,
+        });
+
+        const completion = await openai.chat.completions.create({
+          model: input.model,
+          store: true,
+          // @ts-ignore
+          messages: chatHistory,
+        });
+
+        newAssistantContent = completion.choices[0]?.message?.content ?? "";
+      }
+
+      else if (input.label === "Anthropic") {
+        const anthropic = new Anthropic({
+          apiKey: process.env.CLAUDE_API_KEY,
+        });
+
+        const msg = await anthropic.messages.create({
+          model: input.model,
+          max_tokens: 1024,
+          // @ts-ignore
+          messages: chatHistory,
+        });
+
+        // Extract text from content blocks
+        newAssistantContent = msg.content
+          ?.filter(block => block.type === 'text')
+          .map(block => {
+            if ('text' in block) {
+              return block.text;
+            }
+            return '';
+          })
+          .join('') ?? "";
+      }
+
+
+
+      else if (input.label === "Gemini") {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: input.newUserMessage }],
+                },
+              ],
+            }),
+          }
+        );
+
+        const data = await res.json();
+        newAssistantContent = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
+      }
+
+      // Update or create assistant message
+      let assistantMessageId = pair.assistantMessageId;
+
+      if (assistantMessageId) {
+        await ctx.db.message.update({
+          where: { id: assistantMessageId },
+          data: { content: newAssistantContent },
+        });
+      } else {
+        const newAssistant = await ctx.db.message.create({
+          data: {
+            conversationId: pair.conversationId,
+            sender: "ASSISTANT",
+            content: newAssistantContent,
+          },
+        });
+
+        assistantMessageId = newAssistant.id;
+
+        await ctx.db.messageResponsePair.update({
+          where: { userMessageId: input.messageId },
+          data: {
+            assistantMessageId,
+          },
+        });
+      }
+
+      return {
+        updatedUserMessage: input.newUserMessage,
+        updatedAssistantMessage: newAssistantContent,
+      };
+    })
+
 });
