@@ -27,12 +27,24 @@ export interface Message {
   sender: "user" | "bot";
 }
 
-// Create a context for messages
+// Define the conversation type
+export interface Conversation {
+  id: string;
+  title: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+  model?: string;
+  // Add other fields as needed
+}
+
+// Create a context for messages and conversations
 export interface MessagesContextType {
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   currentConversationId: string | null;
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
+  storedConversations: Conversation[];
+  setStoredConversations: Dispatch<SetStateAction<Conversation[]>>;
 }
 
 export const MessagesContext = createContext<MessagesContextType>({
@@ -40,6 +52,8 @@ export const MessagesContext = createContext<MessagesContextType>({
   setMessages: () => {},
   currentConversationId: null,
   setCurrentConversationId: () => {},
+  storedConversations: [],
+  setStoredConversations: () => {},
 });
 
 export default function Home() {
@@ -59,6 +73,7 @@ function ChatPage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [storedConversations, setStoredConversations] = useState<Conversation[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxSidebarWidth, setMaxSidebarWidth] = useState(0);
@@ -114,8 +129,18 @@ function ChatPage() {
       console.log("Chat created successfully:", data?.fullMessage);
       
       // Store the new conversation ID if available
-      if (data?.conversationId) {
-        setCurrentConversationId(data.conversationId);
+      if (data?.conversation) {
+        setCurrentConversationId(data.conversation.id);
+        
+        // Add the new conversation to stored conversations
+        setStoredConversations(prev => {
+          // Check if conversation already exists to prevent duplicates
+          const exists = prev.some(conv => conv.id === data.conversation.id);
+          if (!exists) {
+            return [data.conversation, ...prev];
+          }
+          return prev;
+        });
       }
       
       setTimeout(() => {
@@ -186,7 +211,9 @@ function ChatPage() {
       messages, 
       setMessages, 
       currentConversationId, 
-      setCurrentConversationId 
+      setCurrentConversationId,
+      storedConversations,
+      setStoredConversations
     }}>
       <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
         <button

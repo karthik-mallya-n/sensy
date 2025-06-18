@@ -11,7 +11,6 @@ export const chatRouter = createTRPCRouter({
       const conversations = await ctx.db.conversation.findMany({
         where: { userId: ctx.session.user.id },  // derive from session
         orderBy: { updatedAt: "desc" },          // show most recent first
-        take: 20,                                // limit results (optional)
       });
       return conversations;
     }),
@@ -139,6 +138,7 @@ greet()
             assistantMessageId: assistant.id,
           },
         });
+        return conversation;
       }
 
       if (input.label === "DeepSeek") {
@@ -157,9 +157,12 @@ greet()
           });
 
           const assistantMsg = completion.choices[0]?.message.content ?? "";
-          await saveConversation(input.message, assistantMsg);
+          const conversation = await saveConversation(input.message, assistantMsg);
 
-          return { fullMessage: assistantMsg };
+          return {
+            fullMessage: assistantMsg,
+            conversation: conversation
+          };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -190,8 +193,8 @@ greet()
             if (content) fullMessage += content;
           }
 
-          await saveConversation(input.message, fullMessage);
-          return { fullMessage };
+          const conversation = await saveConversation(input.message, fullMessage);
+          return { fullMessage: fullMessage, conversation: conversation };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -208,8 +211,11 @@ greet()
             store: true,
             messages: [{ role: "user", content: input.message }],
           });
-
-          return { fullMessage: completion.choices[0]?.message };
+          const conversation = await saveConversation(input.message, completion.choices[0]?.message.content || "No response");
+          return {
+            fullMessage: completion.choices[0]?.message,
+            conversation: conversation
+          };
         } catch (err: any) {
           return { fullMessage: "Error : " + err.message };
         }
@@ -228,6 +234,13 @@ greet()
             max_tokens: 1024,
             messages: [{ role: "user", content: input.message }],
           });
+
+          // const conversation = await saveConversation(input.message, msg?.content);
+
+          const fullMessage = msg.content
+            .filter((block) => block.type === 'text')
+            .map((block) => 'text' in block ? block.text : '')
+            .join('');
 
           return { fullMessage: msg };
         } catch (err: any) {
@@ -256,10 +269,15 @@ greet()
 
           const data = await res.json();
           const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
-          await saveConversation(input.message, content);
-          return { fullMessage: content }
+          const conversation = await saveConversation(input.message, content);
+          return {
+            fullMessage: content,
+            conversation: conversation
+          }
         } catch (err: any) {
-          return { fullMessage: err.message }
+          return {
+            fullMessage: err.message
+          }
         }
       }
     }),

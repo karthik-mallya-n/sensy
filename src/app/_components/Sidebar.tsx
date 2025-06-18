@@ -4,17 +4,10 @@ import NewChatButton from "./NewChatButton";
 import SearchBar from "./SearchBar";
 import ProfileFooter from "./ProfileFooter";
 import { useSession } from "next-auth/react";
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useContext } from "react";
 import { api } from "~/trpc/react";
 import { X } from "lucide-react";
 import { MessagesContext } from "../page";
-
-// You might need to define this interface based on your actual data structure
-interface Conversation {
-  id: string;
-  title: string | null;
-  // Add other fields that exist in your conversation model
-}
 
 export default function Sidebar({
   isNavExpanded,
@@ -26,20 +19,30 @@ export default function Sidebar({
   toggleNavbar: () => void;
 }) {
   const { data: session } = useSession();
-  const [storedConversations, setStoredConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   
-  // Access the messages context
-  const { messages, setMessages } = useContext(MessagesContext);
+  // Access the shared context
+  const { 
+    messages, 
+    setMessages, 
+    currentConversationId, 
+    setCurrentConversationId,
+    storedConversations,
+    setStoredConversations
+  } = useContext(MessagesContext);
 
   // Fetch conversations query
-  const { data: conversations, refetch } = api.chat.getChats.useQuery();
+  const { data: conversations, refetch } = api.chat.getChats.useQuery(
+    { userId: session?.user.id || "" },
+    {
+      enabled: !!session?.user.id,
+    }
+  );
 
   // Query to get messages for selected conversation
   const getMessagesQuery = api.chat.getMessagesForChat.useQuery(
-    { conversationId: selectedConversation || "" },
+    { conversationId: currentConversationId || "" },
     { 
-      enabled: !!selectedConversation,
+      enabled: !!currentConversationId,
       onSuccess: (data) => {
         console.log("Fetched messages for conversation:", data);
       }
@@ -50,9 +53,17 @@ export default function Sidebar({
   const deleteChatMutation = api.chat.deleteChat.useMutation({
     onSuccess: (_, variables) => {
       // If the deleted conversation was selected, clear the selection
-      if (variables.conversationId === selectedConversation) {
-        setSelectedConversation(null);
+      if (variables.conversationId === currentConversationId) {
+        setCurrentConversationId(null);
+        setMessages([]);
       }
+      
+      // Update stored conversations immediately
+      setStoredConversations((prev) => 
+        prev.filter((chat) => chat.id !== variables.conversationId)
+      );
+      
+      // Refetch to ensure consistency
       refetch();
     },
   });
@@ -61,12 +72,11 @@ export default function Sidebar({
   const handleDeleteChat = (chatId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     deleteChatMutation.mutate({ conversationId: chatId });
-    setStoredConversations((prev) => prev.filter((chat) => chat.id !== chatId));
   };
 
   // Handle conversation selection
   const handleSelectConversation = (conversationId: string) => {
-    setSelectedConversation(conversationId);
+    setCurrentConversationId(conversationId);
   };
 
   useEffect(() => {
@@ -79,38 +89,36 @@ export default function Sidebar({
     if (conversations) {
       console.log("Fetched conversations:", conversations);
       setStoredConversations(conversations);
-      
-      // If there are conversations but none selected, select the first one
-      if (conversations.length > 0 && !selectedConversation) {
-        setSelectedConversation(conversations[0].id);
-      }
     }
-  }, [conversations, selectedConversation]);
+  }, [conversations, setStoredConversations]);
 
   // Effect to update messages when selected conversation changes
   useEffect(() => {
-    if (selectedConversation && getMessagesQuery.data) {
+    if (currentConversationId && getMessagesQuery.data) {
       // Transform the messages from the API format to the format expected by the UI
-      const formattedMessages = getMessagesQuery.data.map((messageResponsePair, index) => {
-        // Each pair has userMessage and assistantMessage
-        return [
-          {
-            id: index * 2,
-            text: messageResponsePair.userMessage.content,
-            sender: "user" as const
-          },
-          {
-            id: index * 2 + 1,
-            text: messageResponsePair.assistantMessage?.content || "No response",
-            sender: "bot" as const
-          }
-        ];
-      }).flat();
+      const formattedMessages = getMessagesQuery.data
+        .map((messageResponsePair, index) => {
+          // Each pair has userMessage and assistantMessage
+          return [
+            {
+              id: index * 2,
+              text: messageResponsePair.userMessage.content,
+              sender: "user" as const,
+            },
+            {
+              id: index * 2 + 1,
+              text:
+                messageResponsePair.assistantMessage?.content || "No response",
+              sender: "bot" as const,
+            },
+          ];
+        })
+        .flat();
 
       // Update the messages in the context
       setMessages(formattedMessages);
     }
-  }, [selectedConversation, getMessagesQuery.data, setMessages]);
+  }, [currentConversationId, getMessagesQuery.data, setMessages]);
 
   return (
     <motion.div
@@ -134,7 +142,7 @@ export default function Sidebar({
           <NewChatButton
             isNavExpanded={isNavExpanded}
             clickMe={() => {
-              setSelectedConversation(null);
+              setCurrentConversationId(null);
               setMessages([]);
             }}
           />
@@ -147,8 +155,8 @@ export default function Sidebar({
         {/* Scrollable chats container */}
         <div className="custom-scrollbar flex-1 overflow-y-auto px-2">
           {storedConversations.map((chat) => (
-            <div 
-              key={chat.id} 
+            <div
+              key={chat.id}
               className="group relative"
               onClick={() => handleSelectConversation(chat.id)}
             >
@@ -156,7 +164,7 @@ export default function Sidebar({
                 text={chat.title || "Chat"}
                 isExpanded={isNavExpanded}
                 toggleNavbar={toggleNavbar}
-                isActive={selectedConversation === chat.id}
+                isActive={currentConversationId === chat.id}
               />
               {isNavExpanded ? (
                 <button
@@ -177,11 +185,13 @@ export default function Sidebar({
               )}
             </div>
           ))}
-          
+
           {/* Loading or empty state */}
           {storedConversations.length === 0 && (
-            <div className="text-center text-gray-500 mt-4">
-              {getMessagesQuery.isLoading ? "Loading conversations..." : "No conversations yet"}
+            <div className="mt-4 text-center text-gray-500">
+              {getMessagesQuery.isLoading
+                ? "Loading conversations..."
+                : "No conversations yet"}
             </div>
           )}
         </div>
