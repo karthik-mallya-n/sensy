@@ -306,7 +306,7 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
       if (input.webSearch) {
         try {
           const searchRes = await fetch(
-            `https://api.duckduckgo.com/?q=${encodeURIComponent(input.message)}&format=json&no_redirect=1&no_html=1`
+            `https://serpapi.com/search.json?engine=duckduckgo&q=Apple&kl=us-en`
           );
           const searchData = await searchRes.json();
 
@@ -325,6 +325,7 @@ ${relatedTopics}
             role: "system",
             content: `The following info is from a web search related to the user query:\n\n${webSummary}`
           });
+          console.log("web summary:", webSummary);
         } catch (err) {
           console.error("Web search failed", err);
           chatHistory.unshift({

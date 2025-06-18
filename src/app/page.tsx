@@ -165,8 +165,6 @@ function ChatPage() {
   // Create a new chat
   const createChatMutation = api.chat.createChat.useMutation({
     onSuccess: (data) => {
-      console.log("Chat created successfully:", data?.fullMessage);
-
       // Store the new conversation ID if available
       if (data?.conversation) {
         setCurrentConversationId(data.conversation.id);
