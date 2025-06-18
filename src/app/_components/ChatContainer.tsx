@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import ChatArea from "~/app/_components/ChatArea";
 import ChatInputBox from "~/app/_components/ChatInputBox";
-import ThemeToggleButton from "./ThemeToggleButton";
 
 interface ChatContainerProps {
   messages: {
@@ -71,7 +70,6 @@ style={{
 }}
 
         >
-          <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
           <div className="flex-grow overflow-y-auto">
             <ChatArea messages={messages} />
           </div>

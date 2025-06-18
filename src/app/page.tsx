@@ -21,7 +21,6 @@ import {
   useOption,
 } from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
-import ThemeToggleButton from "./_components/ThemeToggleButton";
 import {
   ButtonProvider,
   useButtonContext,
@@ -232,9 +231,8 @@ function ChatPage() {
     const currentMessages = messagesRef.current;
     const currentConvId = currentConversationIdRef.current;
 
-    const modelName =
-      matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
-    const labelName = selectedOption ?? "DeepSeek";
+  const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
+  const labelName = selectedOption ?? "Gemini";
 
     if (currentMessages.length === 0 || !currentConvId) {
       createChatMutation.mutate({
@@ -326,8 +324,7 @@ function ChatPage() {
           showNavbar={showNavbar}
           smoothSidebarWidth={smoothSidebarWidth}
         />
-
-        <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
+        
       </div>
     </MessagesContext.Provider>
   );
