@@ -3,6 +3,9 @@ import NavItem from "./NavItem";
 import NewChatButton from "./NewChatButton";
 import SearchBar from "./SearchBar";
 import ProfileFooter from "./ProfileFooter";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+import { api } from "~/trpc/react";
 
 export default function Sidebar({
   isNavExpanded,
@@ -13,37 +16,64 @@ export default function Sidebar({
   smoothSidebarWidth: any;
   toggleNavbar: () => void;
 }) {
+  const { data: session } = useSession();
+
+  const { data: conversations, refetch } = api.chat.getChats.useQuery(
+    { userId: session?.user.id || "" },
+    {
+      enabled: !!session?.user.id, // prevent query from running until user ID is available
+    },
+  );
+
+  useEffect(() => {
+    if (session?.user.id) {
+      refetch(); // Refetch whenever user ID changes (optional — because useQuery will handle initial fetch)
+    }
+  }, [session?.user.id, refetch]);
+
+  useEffect(() => {
+    if (conversations) {
+      console.log("Fetched conversations:", conversations);
+    }
+  }, [conversations]);
+
   return (
     <motion.div
-      className="fixed top-0 left-0 h-screen bg-[#162020] flex flex-col justify-between z-20"
+      className="fixed top-0 left-0 z-20 flex h-screen flex-col justify-between bg-[#162020]"
       style={{ width: smoothSidebarWidth }}
     >
-      <div>
-        <div className="flex items-center p-4 pl-20 pt-6.5 pb-8">
+      <div className="flex h-full flex-col">
+        <div className="flex items-center p-4 pt-6.5 pb-8 pl-20">
           {isNavExpanded && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-white font-bold text-xl overflow-hidden text-ellipsis whitespace-nowrap"
+              className="overflow-hidden text-xl font-bold text-ellipsis whitespace-nowrap text-white"
             >
               <span className="text-cyan-400">🧠</span> Sensy
             </motion.div>
           )}
         </div>
 
-        <div className="px-4 mb-4">
-          <NewChatButton isNavExpanded={isNavExpanded}  clickMe={()=>{console.log("Hi")}}/>
+        <div className="mb-4 px-4">
+          <NewChatButton
+            isNavExpanded={isNavExpanded}
+            clickMe={() => {
+              console.log("Hi");
+            }}
+          />
         </div>
 
-        <div className="px-4 mb-6">
+        <div className="mb-6 px-4">
           <SearchBar isNavExpanded={isNavExpanded} />
         </div>
 
-        <div className="px-2">
-          {["Stock Market Ideas", "Profile", "Settings", "Help"].map((item) => (
+        {/* Scrollable chats container */}
+        <div className="custom-scrollbar flex-1 overflow-y-auto px-2">
+          {conversations?.map((chat) => (
             <NavItem
-              key={item}
-              text={item}
+              key={chat.id}
+              text={chat.title || "Chat"}
               isExpanded={isNavExpanded}
               toggleNavbar={toggleNavbar}
             />
