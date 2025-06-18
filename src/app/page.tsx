@@ -19,6 +19,7 @@ import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
 import { OptionProvider, useOption } from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
+import ThemeToggleButton from "./_components/ThemeToggleButton";
 
 // Define the message type
 export interface Message {
@@ -108,8 +109,15 @@ function ChatPage() {
     return () => window.removeEventListener("resize", updateMaxSidebar);
   }, []);
 
+  // Apply theme to the document root
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    // Remove both classes first to ensure clean state
+    document.documentElement.classList.remove('light', 'dark');
+    // Add the current theme class
+    document.documentElement.classList.add(theme);
+    
+    // You can also store the preference in localStorage for persistence
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleNavbar = () => {
@@ -215,13 +223,13 @@ function ChatPage() {
       storedConversations,
       setStoredConversations
     }}>
-      <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
+      <div className={`relative h-screen w-screen bg-[#f5f5f5] dark:bg-[#162020]`} ref={containerRef}>
         <button
           onClick={toggleNavbar}
-          className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-white shadow-lg transition-colors duration-200 ${
+          className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-gray-700 dark:text-white shadow-lg transition-colors duration-200 ${
             showNavbar && isNavExpanded
-              ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
-              : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
+              ? "border border-transparent bg-gray-100 dark:bg-[#162020] hover:bg-gray-200 dark:hover:bg-[#2D3838]"
+              : "border border-gray-300 dark:border-[#2D3838] bg-white dark:bg-[#0D1919] hover:bg-gray-100 dark:hover:bg-[#0E2626]"
           } `}
           title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
           style={{ outline: "none" }}
@@ -255,6 +263,9 @@ function ChatPage() {
           showNavbar={showNavbar}
           smoothSidebarWidth={smoothSidebarWidth}
         />
+        
+        {/* Add ThemeToggleButton outside other components */}
+        <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
       </div>
     </MessagesContext.Provider>
   );
