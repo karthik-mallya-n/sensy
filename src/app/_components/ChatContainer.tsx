@@ -53,24 +53,43 @@ export default function ChatContainer({
         <div
           ref={chatRef}
           className="chat flex-1 min-w-[400px] rounded-lg h-full overflow-auto relative border border-[#2D3838] flex flex-col"
-style={{
-  backgroundImage: `
-    linear-gradient(
-      90deg,
-      rgba(13, 25, 25, 1) 0%,
-      rgba(16, 32, 32, 1) 25%,
-      rgba(21, 40, 40, 1) 50%,
-      rgba(16, 32, 32, 1) 75%,
-      rgba(13, 25, 25, 1) 100%
-    ),
-    linear-gradient(rgba(13, 25, 25, 0.2), rgba(13, 25, 25, 0.4)),
-    url('/noise1.png')
-  `,
-  backgroundSize: "cover, cover, cover",
-  backgroundBlendMode: "multiply, normal, multiply",
-}}
+          style={{
+            backgroundImage: `
+              linear-gradient(
+                90deg,
+                rgba(13, 25, 25, 1) 0%,
+                rgba(16, 32, 32, 1) 25%,
+                rgba(21, 40, 40, 1) 50%,
+                rgba(16, 32, 32, 1) 75%,
+                rgba(13, 25, 25, 1) 100%
+              ),
+              linear-gradient(rgba(13, 25, 25, 0.2), rgba(13, 25, 25, 0.4)),
+              url('/noise1.png')
+            `,
+            backgroundSize: "cover, cover, cover",
+            backgroundBlendMode: "multiply, normal, multiply",
 
+            /* Scrollbar styles for WebKit */
+            scrollbarWidth: "thin", // Firefox
+            scrollbarColor: "#47585e transparent", // Firefox thumb and track
+          }}
         >
+          {/* Custom scrollbar styles for WebKit browsers */}
+          <style>
+            {`
+              .chat::-webkit-scrollbar {
+                width: 8px;
+              }
+              .chat::-webkit-scrollbar-thumb {
+                background-color: #47585e;
+                border-radius: 4px;
+              }
+              .chat::-webkit-scrollbar-track {
+                background-color: transparent;
+              }
+            `}
+          </style>
+
           <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
           <div className="flex-grow overflow-y-auto">
             <ChatArea messages={messages} />

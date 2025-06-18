@@ -133,14 +133,14 @@ export default function Sidebar({
       style={{ width: smoothSidebarWidth }}
     >
       <div className="flex h-full flex-col">
-        <div className="flex items-center p-4 pt-6.5 pb-8 pl-20">
+        <div className="flex items-center p-4 pt-5.5 pb-8 pl-20">
           {isNavExpanded && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="overflow-hidden text-2xl font-bold text-ellipsis whitespace-nowrap text-white"
+              className="overflow-hidden text-2xl font-bold text-ellipsis whitespace-nowrap text-white mb-2"
             >
-              Sensy
+              sensy.ai
             </motion.div>
           )}
         </div>
