@@ -306,7 +306,7 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
       if (input.webSearch) {
         try {
           const searchRes = await fetch(
-            `https://serpapi.com/search.json?engine=duckduckgo&q=Apple&kl=us-en`
+            `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(input.message)}&count=3`,
           );
           const searchData = await searchRes.json();
 

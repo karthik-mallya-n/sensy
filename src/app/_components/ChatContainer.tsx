@@ -89,7 +89,6 @@ export default function ChatContainer({
             `}
           </style>
 
-          <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
           <div className="flex-grow overflow-y-auto">
             <ChatArea messages={messages} />
           </div>
