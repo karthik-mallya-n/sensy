@@ -111,7 +111,7 @@ export default function ResponseFormat({ content }: { content: string }) {
             if (!inline && match) {
               return (
                 <div className="relative mb-6 rounded-md">
-                  <div className="flex items-center justify-between rounded-t-md bg-gray-800 px-4 py-2 text-xs text-gray-200">
+                  <div className="flex items-center justify-between rounded-t-md bg-[#0DC5C5]/20 px-4 py-2 text-xs text-gray-200">
                     <span>{match[1]}</span>
                     <button
                       onClick={() => handleCopyCode(codeString)}
@@ -143,7 +143,7 @@ export default function ResponseFormat({ content }: { content: string }) {
             } else {
               return (
                 <code
-                  className="mx-0.5 rounded w-full bg-gray-700 px-1.5 py-0.5 text-gray-100 font-mono text-xs"
+                  className="mx-0.5 rounded w-full bg-[#0DC5C5]/20 px-1.5 py-0.5 text-gray-100 font-mono text-xs"
                   {...props}
                 >
                   {children}
@@ -170,7 +170,7 @@ export default function ResponseFormat({ content }: { content: string }) {
             <td className="px-4 py-1" {...props} />
           ),
           hr: ({ node, ...props }) => (
-            <hr className="my-6 border-gray-700" {...props} />
+            <hr className="my-6 border-gray-100" {...props} />
           ),
         }}
       >
@@ -178,39 +178,39 @@ export default function ResponseFormat({ content }: { content: string }) {
       </ReactMarkdown>
 
       {!isTyping && (
-<div className="mt-4 flex justify-start">
-  <button
-    onClick={async () => {
-      await navigator.clipboard.writeText(content);
-      setCopiedCode("full-message");
-      setTimeout(() => setCopiedCode(null), 2000);
-    }}
-    onMouseEnter={() => setIsHoveringCopy(true)}
-    onMouseLeave={() => setIsHoveringCopy(false)}
-    className="relative flex items-center gap-2 rounded-md bg-transparent px-1 text-sm text-gray-300 hover:bg-transparent transition"
-  >
-    {copiedCode === "full-message" ? (
-      <>
-        <CheckIcon className="h-4 w-4 text-white" />
-      </>
-    ) : (
-      <>
-        {isHoveringCopy ? (
-          <CheckIcon className="h-4 w-4 text-gray-400" />
-        ) : (
-          <ClipboardIcon className="h-4 w-4" />
-        )}
-      </>
-    )}
+        <div className="mt-4 flex justify-start">
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(content);
+              setCopiedCode("full-message");
+              setTimeout(() => setCopiedCode(null), 2000);
+            }}
+            onMouseEnter={() => setIsHoveringCopy(true)}
+            onMouseLeave={() => setIsHoveringCopy(false)}
+            className="relative flex items-center gap-2 rounded-md bg-transparent px-1 text-sm text-gray-300 hover:bg-transparent transition"
+          >
+            {copiedCode === "full-message" ? (
+              <>
+                <CheckIcon className="h-4 w-4 text-white" />
+              </>
+            ) : (
+              <>
+                {isHoveringCopy ? (
+                  <CheckIcon className="h-4 w-4 text-gray-400" />
+                ) : (
+                  <ClipboardIcon className="h-4 w-4" />
+                )}
+              </>
+            )}
 
-    {/* Tooltip below */}
-    {isHoveringCopy && copiedCode !== "full-message" && (
-      <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-700 px-2 py-1 text-xs text-white shadow-lg select-none pointer-events-none">
-        Copy
-      </div>
-    )}
-  </button>
-</div>
+            {/* Tooltip below */}
+            {isHoveringCopy && copiedCode !== "full-message" && (
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-700 px-2 py-1 text-xs text-white shadow-lg select-none pointer-events-none">
+                Copy
+              </div>
+            )}
+          </button>
+        </div>
 
       )}
     </div>
