@@ -8,7 +8,7 @@ type OptionsContextType = {
 const OptionsContext = createContext<OptionsContextType | undefined>(undefined);
 
 export const OptionProvider = ({ children }: { children: ReactNode }) => {
-  const [selectedOption, setSelectedOption] = useState("DeepSeek");
+  const [selectedOption, setSelectedOption] = useState("Gemini");
 
   return (
     <OptionsContext.Provider value={{ selectedOption, setSelectedOption }}>

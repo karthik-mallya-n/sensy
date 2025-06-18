@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import ChatArea from "~/app/_components/ChatArea";
 import ChatInputBox from "~/app/_components/ChatInputBox";
-import ThemeToggleButton from "./ThemeToggleButton";
 
 interface ChatContainerProps {
   messages: {

@@ -52,6 +52,7 @@ export const chatRouter = createTRPCRouter({
         message: z.string(),
         model: z.string(),
         label: z.string(),
+        webSearch: z.boolean().optional().default(false),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -67,45 +68,30 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
 - If including blockquotes, tables, or links, ensure they follow valid Markdown syntax.
 
 ❗ **Never output code, headings, lists, or other structures without proper Markdown syntax. Never mix styles within the same output (e.g., don’t switch between \`-\` and \`*\` in one list). Never sacrifice clarity for compactness.**
-
----
-
-### **Example — Country and its wonders**
-## Egypt
-
-- Pyramids of Giza  
-- Sphinx of Giza  
-- Valley of the Kings  
-
----
-
-### **Example — Code**
-
-\`\`\`java
-// Example Java code
-public class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, world!");
-    }
-}
-\`\`\`
-
-\`\`\`python
-# Example Python code
-def greet():
-    print("Hello, world!")
-greet()
-\`\`\`
-
----
-
-⚠️ Always check your output structure to ensure it will render cleanly in Markdown. The **formatting is as important as the content**.
 `;
 
-      async function saveConversation(
-        userMessage: string,
-        assistantMessage: string,
-      ) {
+      async function fetchWebSearchResults(query: string): Promise<string> {
+        const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Search API failed");
+          const data = await res.json();
+
+          const abstract = data.AbstractText || '';
+          const related = (data.RelatedTopics || [])
+            .slice(0, 3)
+            .map((t: any) => t.Text)
+            .filter(Boolean)
+            .join("\n");
+
+          return `## Web Search Results\n\n${abstract}\n\n${related}`;
+        } catch (err) {
+          console.error("Web search error", err);
+          return "⚠️ Web search failed or returned no data.";
+        }
+      }
+
+      async function saveConversation(userMessage: string, assistantMessage: string) {
         const conversation = await ctx.db.conversation.create({
           data: {
             branchedId: input.conversationId ?? undefined,
@@ -119,7 +105,6 @@ greet()
             conversationId: conversation.id,
             sender: "USER",
             content: userMessage,
-
           },
         });
 
@@ -138,9 +123,18 @@ greet()
             assistantMessageId: assistant.id,
           },
         });
+
         return conversation;
       }
 
+      // Prepare message with optional web search results
+      let userMessage = input.message;
+      if (input.webSearch) {
+        const searchResults = await fetchWebSearchResults(input.message);
+        userMessage = `${searchResults}\n\nUser query: ${input.message}`;
+      }
+
+      // Handle different models
       if (input.label === "DeepSeek") {
         const openai = new OpenAI({
           baseURL: "https://openrouter.ai/api/v1",
@@ -152,17 +146,13 @@ greet()
             model: input.model,
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: input.message }, // FIXED: plain string content
+              { role: "user", content: userMessage },
             ],
           });
 
           const assistantMsg = completion.choices[0]?.message.content ?? "";
-          const conversation = await saveConversation(input.message, assistantMsg);
-
-          return {
-            fullMessage: assistantMsg,
-            conversation: conversation
-          };
+          const conversation = await saveConversation(userMessage, assistantMsg);
+          return { fullMessage: assistantMsg, conversation };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -179,7 +169,7 @@ greet()
             model: input.model,
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: input.message },
+              { role: "user", content: userMessage },
             ],
             temperature: 0.5,
             top_p: 1,
@@ -193,8 +183,8 @@ greet()
             if (content) fullMessage += content;
           }
 
-          const conversation = await saveConversation(input.message, fullMessage);
-          return { fullMessage: fullMessage, conversation: conversation };
+          const conversation = await saveConversation(userMessage, fullMessage);
+          return { fullMessage, conversation };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -209,42 +199,38 @@ greet()
           const completion = await openai.chat.completions.create({
             model: input.model,
             store: true,
-            messages: [{ role: "user", content: input.message }],
+            messages: [{ role: "user", content: userMessage }],
           });
-          const conversation = await saveConversation(input.message, completion.choices[0]?.message.content || "No response");
-          return {
-            fullMessage: completion.choices[0]?.message,
-            conversation: conversation
-          };
-        } catch (err: any) {
-          return { fullMessage: "Error : " + err.message };
-        }
 
-        // completion.then((result) => console.log(result.choices[0].message));
+          const assistantMsg = completion.choices[0]?.message.content || "No response";
+          const conversation = await saveConversation(userMessage, assistantMsg);
+          return { fullMessage: assistantMsg, conversation };
+        } catch (err: any) {
+          return { fullMessage: "Error: " + err.message };
+        }
       }
 
       if (input.label === "Anthropic") {
         const anthropic = new Anthropic({
-          apiKey: process.env.CLAUDE_API_KEY, // defaults to process.env["ANTHROPIC_API_KEY"]
+          apiKey: process.env.CLAUDE_API_KEY,
         });
 
         try {
           const msg = await anthropic.messages.create({
             model: input.model,
             max_tokens: 1024,
-            messages: [{ role: "user", content: input.message }],
+            messages: [{ role: "user", content: userMessage }],
           });
-
-          // const conversation = await saveConversation(input.message, msg?.content);
 
           const fullMessage = msg.content
             .filter((block) => block.type === 'text')
             .map((block) => 'text' in block ? block.text : '')
             .join('');
 
-          return { fullMessage: msg };
+          const conversation = await saveConversation(userMessage, fullMessage);
+          return { fullMessage, conversation };
         } catch (err: any) {
-          return { fullMessage: "Error : " + err.message };
+          return { fullMessage: "Error: " + err.message };
         }
       }
 
@@ -260,7 +246,7 @@ greet()
               body: JSON.stringify({
                 contents: [
                   {
-                    parts: [{ text: input.message }],
+                    parts: [{ text: userMessage }],
                   },
                 ],
               }),
@@ -269,18 +255,16 @@ greet()
 
           const data = await res.json();
           const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
-          const conversation = await saveConversation(input.message, content);
-          return {
-            fullMessage: content,
-            conversation: conversation
-          }
+          const conversation = await saveConversation(userMessage, content);
+          return { fullMessage: content, conversation };
         } catch (err: any) {
-          return {
-            fullMessage: err.message
-          }
+          return { fullMessage: "Error: " + err.message };
         }
       }
+
+      return { fullMessage: "Unsupported model label" };
     }),
+
 
   //-------------------------------Follow up chat with context
   followUpChat: protectedProcedure
@@ -290,10 +274,11 @@ greet()
         message: z.string(),
         model: z.string(),
         label: z.string(),
+        webSearch: z.boolean().optional().default(false), // ✅ Add webSearch flag
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id; // Enforce user identity
+      const userId = ctx.session.user.id;
 
       // 1️⃣ Fetch chat history
       const messages = await ctx.db.message.findMany({
@@ -302,7 +287,7 @@ greet()
         take: 20,
       });
 
-      const chatHistory = messages.map((msg) => ({
+      let chatHistory = messages.map((msg) => ({
         role:
           msg.sender === "USER"
             ? "user"
@@ -316,6 +301,38 @@ greet()
         role: "user",
         content: input.message,
       });
+
+      // 2️⃣ If webSearch is requested, fetch search info
+      if (input.webSearch) {
+        try {
+          const searchRes = await fetch(
+            `https://api.duckduckgo.com/?q=${encodeURIComponent(input.message)}&format=json&no_redirect=1&no_html=1`
+          );
+          const searchData = await searchRes.json();
+
+          const abstract = searchData.AbstractText || "";
+          const relatedTopics = searchData.RelatedTopics?.slice(0, 3).map((t: any) => t.Text).join("\n") || "";
+
+          const webSummary = `# Web Search Summary
+
+${abstract}
+
+${relatedTopics}
+        `;
+
+          // Prepend search summary to context
+          chatHistory.unshift({
+            role: "system",
+            content: `The following info is from a web search related to the user query:\n\n${webSummary}`
+          });
+        } catch (err) {
+          console.error("Web search failed", err);
+          chatHistory.unshift({
+            role: "system",
+            content: `Web search failed. Proceed without it.`
+          });
+        }
+      }
 
       async function generateResponse() {
         if (input.label === "DeepSeek") {
@@ -406,15 +423,14 @@ greet()
           return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
         }
 
-
         throw new Error("Unsupported provider label");
       }
 
       try {
-        // 2️⃣ Generate AI response
+        // 3️⃣ Generate AI response
         const assistantContent = await generateResponse();
 
-        // 3️⃣ Save user + assistant message + link
+        // 4️⃣ Save messages
         const userMsg = await ctx.db.message.create({
           data: {
             conversationId: input.conversationId,
@@ -440,13 +456,10 @@ greet()
         });
 
         return { fullMessage: assistantContent };
-
       } catch (err: any) {
         return { fullMessage: "Error: " + (err.message ?? "Unknown error") };
       }
     }),
-
-
 
 
   //-------------------------------Delete a chat
@@ -575,7 +588,7 @@ greet()
       };
     }),
 
-    renameChat: protectedProcedure
+  renameChat: protectedProcedure
     .input(
       z.object({
         conversationId: z.string(),
