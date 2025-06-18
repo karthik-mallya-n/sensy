@@ -16,9 +16,16 @@ import { api } from "~/trpc/react";
 import Sidebar from "./_components/Sidebar";
 import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
-import { OptionProvider, useOption } from "./_components/context/OptionsContext";
+import {
+  OptionProvider,
+  useOption,
+} from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
 import ThemeToggleButton from "./_components/ThemeToggleButton";
+import {
+  ButtonProvider,
+  useButtonContext,
+} from "./_components/context/ButtonContext";
 
 // Define the message type
 export interface Message {
@@ -60,7 +67,9 @@ export default function Home() {
   return (
     <SessionProvider>
       <OptionProvider>
-        <ChatPage />
+        <ButtonProvider>
+          <ChatPage />
+        </ButtonProvider>
       </OptionProvider>
     </SessionProvider>
   );
@@ -72,8 +81,13 @@ function ChatPage() {
   const [isNavExpanded, setIsNavExpanded] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [storedConversations, setStoredConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<
+    string | null
+  >(null);
+  const [storedConversations, setStoredConversations] = useState<
+    Conversation[]
+  >([]);
+  const{ active } = useButtonContext();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxSidebarWidth, setMaxSidebarWidth] = useState(0);
@@ -130,12 +144,12 @@ function ChatPage() {
   // Apply theme to the document root
   useEffect(() => {
     // Remove both classes first to ensure clean state
-    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.remove("light", "dark");
     // Add the current theme class
     document.documentElement.classList.add(theme);
-    
+
     // You can also store the preference in localStorage for persistence
-    localStorage.setItem('theme', theme);
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
   const toggleNavbar = () => {
@@ -153,15 +167,15 @@ function ChatPage() {
   const createChatMutation = api.chat.createChat.useMutation({
     onSuccess: (data) => {
       console.log("Chat created successfully:", data?.fullMessage);
-      
+
       // Store the new conversation ID if available
       if (data?.conversation) {
         setCurrentConversationId(data.conversation.id);
-        
+
         // Add the new conversation to stored conversations
-        setStoredConversations(prev => {
+        setStoredConversations((prev) => {
           // Check if conversation already exists to prevent duplicates
-          const exists = prev.some(conv => conv.id === data.conversation.id);
+          const exists = prev.some((conv) => conv.id === data.conversation.id);
           if (!exists) {
             return [data.conversation, ...prev];
           }
@@ -214,49 +228,71 @@ function ChatPage() {
     (opt) => opt.model === selectedOption || opt.label === selectedOption,
   );
 
-const addUserMessage = (text: string) => {
-  const currentMessages = messagesRef.current;
-  const currentConvId = currentConversationIdRef.current;
+  const addUserMessage = (text: string) => {
+    const currentMessages = messagesRef.current;
+    const currentConvId = currentConversationIdRef.current;
 
-  const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
-  const labelName = selectedOption ?? "DeepSeek";
+    const modelName =
+      matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
+    const labelName = selectedOption ?? "DeepSeek";
 
-  if (currentMessages.length === 0 || !currentConvId) {
-    createChatMutation.mutate({
-      message: text,
-      model: modelName,
-      label: labelName,
-    });
-  } else {
-    followUpChatMutation.mutate({
-      conversationId: currentConvId,
-      message: text,
-      model: modelName,
-      label: labelName,
-    });
-  }
+    if (currentMessages.length === 0 || !currentConvId) {
+      createChatMutation.mutate({
+        message: text,
+        model: modelName,
+        label: labelName,
+        webSearch: active,
+      });
+    } else {
+      followUpChatMutation.mutate({
+        conversationId: currentConvId,
+        message: text,
+        model: modelName,
+        label: labelName,
+        webSearch: active,
+      });
+    }
 
-  const userMessage = { id: getNextMessageId(), text, sender: "user" as const };
-  setMessages((prev) => [...prev, userMessage]);
-};
+    const userMessage = {
+      id: getNextMessageId(),
+      text,
+      sender: "user" as const,
+    };
+    setMessages((prev) => [...prev, userMessage]);
+  };
 
+  // Access the button state from context if needed
+  const { active: buttonActive } = useButtonContext();
+
+  // Use buttonActive in your component logic if needed
+  useEffect(() => {
+    if (buttonActive) {
+      console.log("Button is active!");
+      // Do something when the button is active
+    }
+  }, [buttonActive]);
 
   return (
-    <MessagesContext.Provider value={{ 
-      messages, 
-      setMessages, 
-      currentConversationId, 
-      setCurrentConversationId,
-      storedConversations,
-      setStoredConversations
-    }}>
-      <div className={`relative h-screen w-screen bg-[#f5f5f5] dark:bg-[#162020]`} ref={containerRef}>
+    <MessagesContext.Provider
+      value={{
+        messages,
+        setMessages,
+        currentConversationId,
+        setCurrentConversationId,
+        storedConversations,
+        setStoredConversations,
+      }}
+    >
+      <div
+        className={`relative h-screen w-screen bg-[#f5f5f5] dark:bg-[#162020]`}
+        ref={containerRef}
+      >
         <button
           onClick={toggleNavbar}
-          className={`cursor-pointer fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-[#A2BEBE] shadow-lg transition-colors duration-200 ${
+          className={`fixed top-6 left-6 z-30 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md p-1.5 text-[#A2BEBE] shadow-lg transition-colors duration-200 ${
             showNavbar && isNavExpanded
-              ? "bg-[#162020] hover:bg-[#2D3838] border border-transparent"
-              : "bg-[#0D1919] hover:bg-[#0E2626] border border-[#2D3838]"
+              ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
+              : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
           } `}
           title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
           style={{ outline: "none" }}
@@ -290,8 +326,7 @@ const addUserMessage = (text: string) => {
           showNavbar={showNavbar}
           smoothSidebarWidth={smoothSidebarWidth}
         />
-        
-        {/* Add ThemeToggleButton outside other components */}
+
         <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
       </div>
     </MessagesContext.Provider>

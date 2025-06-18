@@ -46,17 +46,17 @@ export const chatRouter = createTRPCRouter({
 
   //-------------------------------Create a new chat
   createChat: protectedProcedure
-  .input(
-    z.object({
-      conversationId: z.string().optional(),
-      message: z.string(),
-      model: z.string(),
-      label: z.string(),
-      webSearch: z.boolean().optional().default(false),
-    }),
-  )
-  .mutation(async ({ ctx, input }) => {
-    const systemPrompt = `
+    .input(
+      z.object({
+        conversationId: z.string().optional(),
+        message: z.string(),
+        model: z.string(),
+        label: z.string(),
+        webSearch: z.boolean().optional().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const systemPrompt = `
 You are an AI assistant. Your *highest priority* is to return output in **valid, clean, and well-structured Markdown** that looks correct in any Markdown viewer or editor.
 
 ✅ **Markdown formatting rules you must follow strictly**:
@@ -70,200 +70,200 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
 ❗ **Never output code, headings, lists, or other structures without proper Markdown syntax. Never mix styles within the same output (e.g., don’t switch between \`-\` and \`*\` in one list). Never sacrifice clarity for compactness.**
 `;
 
-    async function fetchWebSearchResults(query: string): Promise<string> {
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Search API failed");
-        const data = await res.json();
+      async function fetchWebSearchResults(query: string): Promise<string> {
+        const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Search API failed");
+          const data = await res.json();
 
-        const abstract = data.AbstractText || '';
-        const related = (data.RelatedTopics || [])
-          .slice(0, 3)
-          .map((t: any) => t.Text)
-          .filter(Boolean)
-          .join("\n");
+          const abstract = data.AbstractText || '';
+          const related = (data.RelatedTopics || [])
+            .slice(0, 3)
+            .map((t: any) => t.Text)
+            .filter(Boolean)
+            .join("\n");
 
-        return `## Web Search Results\n\n${abstract}\n\n${related}`;
-      } catch (err) {
-        console.error("Web search error", err);
-        return "⚠️ Web search failed or returned no data.";
-      }
-    }
-
-    async function saveConversation(userMessage: string, assistantMessage: string) {
-      const conversation = await ctx.db.conversation.create({
-        data: {
-          branchedId: input.conversationId ?? undefined,
-          userId: ctx.session.user.id,
-          model: input.model,
-        },
-      });
-
-      const user = await ctx.db.message.create({
-        data: {
-          conversationId: conversation.id,
-          sender: "USER",
-          content: userMessage,
-        },
-      });
-
-      const assistant = await ctx.db.message.create({
-        data: {
-          conversationId: conversation.id,
-          sender: "ASSISTANT",
-          content: assistantMessage,
-        },
-      });
-
-      await ctx.db.messageResponsePair.create({
-        data: {
-          conversationId: conversation.id,
-          userMessageId: user.id,
-          assistantMessageId: assistant.id,
-        },
-      });
-
-      return conversation;
-    }
-
-    // Prepare message with optional web search results
-    let userMessage = input.message;
-    if (input.webSearch) {
-      const searchResults = await fetchWebSearchResults(input.message);
-      userMessage = `${searchResults}\n\nUser query: ${input.message}`;
-    }
-
-    // Handle different models
-    if (input.label === "DeepSeek") {
-      const openai = new OpenAI({
-        baseURL: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY,
-      });
-
-      try {
-        const completion = await openai.chat.completions.create({
-          model: input.model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-        });
-
-        const assistantMsg = completion.choices[0]?.message.content ?? "";
-        const conversation = await saveConversation(userMessage, assistantMsg);
-        return { fullMessage: assistantMsg, conversation };
-      } catch (error: any) {
-        return { fullMessage: "Error: " + error.message };
-      }
-    }
-
-    if (input.label === "Nvidia") {
-      const client = new OpenAI({
-        baseURL: "https://integrate.api.nvidia.com/v1",
-        apiKey: process.env.NVIDIA_API_KEY,
-      });
-
-      try {
-        const completion = await client.chat.completions.create({
-          model: input.model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          temperature: 0.5,
-          top_p: 1,
-          max_tokens: 1024,
-          stream: true,
-        });
-
-        let fullMessage = "";
-        for await (const chunk of completion) {
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) fullMessage += content;
+          return `## Web Search Results\n\n${abstract}\n\n${related}`;
+        } catch (err) {
+          console.error("Web search error", err);
+          return "⚠️ Web search failed or returned no data.";
         }
-
-        const conversation = await saveConversation(userMessage, fullMessage);
-        return { fullMessage, conversation };
-      } catch (error: any) {
-        return { fullMessage: "Error: " + error.message };
       }
-    }
 
-    if (input.label === "GPT-4o-Mini") {
-      const openai = new OpenAI({
-        apiKey: process.env.GPT_4O_MINI_API_KEY,
-      });
-
-      try {
-        const completion = await openai.chat.completions.create({
-          model: input.model,
-          store: true,
-          messages: [{ role: "user", content: userMessage }],
-        });
-
-        const assistantMsg = completion.choices[0]?.message.content || "No response";
-        const conversation = await saveConversation(userMessage, assistantMsg);
-        return { fullMessage: assistantMsg, conversation };
-      } catch (err: any) {
-        return { fullMessage: "Error: " + err.message };
-      }
-    }
-
-    if (input.label === "Anthropic") {
-      const anthropic = new Anthropic({
-        apiKey: process.env.CLAUDE_API_KEY,
-      });
-
-      try {
-        const msg = await anthropic.messages.create({
-          model: input.model,
-          max_tokens: 1024,
-          messages: [{ role: "user", content: userMessage }],
-        });
-
-        const fullMessage = msg.content
-          .filter((block) => block.type === 'text')
-          .map((block) => 'text' in block ? block.text : '')
-          .join('');
-
-        const conversation = await saveConversation(userMessage, fullMessage);
-        return { fullMessage, conversation };
-      } catch (err: any) {
-        return { fullMessage: "Error: " + err.message };
-      }
-    }
-
-    if (input.label === "Gemini") {
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: userMessage }],
-                },
-              ],
-            }),
+      async function saveConversation(userMessage: string, assistantMessage: string) {
+        const conversation = await ctx.db.conversation.create({
+          data: {
+            branchedId: input.conversationId ?? undefined,
+            userId: ctx.session.user.id,
+            model: input.model,
           },
-        );
+        });
 
-        const data = await res.json();
-        const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
-        const conversation = await saveConversation(userMessage, content);
-        return { fullMessage: content, conversation };
-      } catch (err: any) {
-        return { fullMessage: "Error: " + err.message };
+        const user = await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "USER",
+            content: userMessage,
+          },
+        });
+
+        const assistant = await ctx.db.message.create({
+          data: {
+            conversationId: conversation.id,
+            sender: "ASSISTANT",
+            content: assistantMessage,
+          },
+        });
+
+        await ctx.db.messageResponsePair.create({
+          data: {
+            conversationId: conversation.id,
+            userMessageId: user.id,
+            assistantMessageId: assistant.id,
+          },
+        });
+
+        return conversation;
       }
-    }
 
-    return { fullMessage: "Unsupported model label" };
-  }),
+      // Prepare message with optional web search results
+      let userMessage = input.message;
+      if (input.webSearch) {
+        const searchResults = await fetchWebSearchResults(input.message);
+        userMessage = `${searchResults}\n\nUser query: ${input.message}`;
+      }
+
+      // Handle different models
+      if (input.label === "DeepSeek") {
+        const openai = new OpenAI({
+          baseURL: "https://openrouter.ai/api/v1",
+          apiKey: process.env.OPENROUTER_API_KEY,
+        });
+
+        try {
+          const completion = await openai.chat.completions.create({
+            model: input.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMessage },
+            ],
+          });
+
+          const assistantMsg = completion.choices[0]?.message.content ?? "";
+          const conversation = await saveConversation(userMessage, assistantMsg);
+          return { fullMessage: assistantMsg, conversation };
+        } catch (error: any) {
+          return { fullMessage: "Error: " + error.message };
+        }
+      }
+
+      if (input.label === "Nvidia") {
+        const client = new OpenAI({
+          baseURL: "https://integrate.api.nvidia.com/v1",
+          apiKey: process.env.NVIDIA_API_KEY,
+        });
+
+        try {
+          const completion = await client.chat.completions.create({
+            model: input.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMessage },
+            ],
+            temperature: 0.5,
+            top_p: 1,
+            max_tokens: 1024,
+            stream: true,
+          });
+
+          let fullMessage = "";
+          for await (const chunk of completion) {
+            const content = chunk.choices?.[0]?.delta?.content;
+            if (content) fullMessage += content;
+          }
+
+          const conversation = await saveConversation(userMessage, fullMessage);
+          return { fullMessage, conversation };
+        } catch (error: any) {
+          return { fullMessage: "Error: " + error.message };
+        }
+      }
+
+      if (input.label === "GPT-4o-Mini") {
+        const openai = new OpenAI({
+          apiKey: process.env.GPT_4O_MINI_API_KEY,
+        });
+
+        try {
+          const completion = await openai.chat.completions.create({
+            model: input.model,
+            store: true,
+            messages: [{ role: "user", content: userMessage }],
+          });
+
+          const assistantMsg = completion.choices[0]?.message.content || "No response";
+          const conversation = await saveConversation(userMessage, assistantMsg);
+          return { fullMessage: assistantMsg, conversation };
+        } catch (err: any) {
+          return { fullMessage: "Error: " + err.message };
+        }
+      }
+
+      if (input.label === "Anthropic") {
+        const anthropic = new Anthropic({
+          apiKey: process.env.CLAUDE_API_KEY,
+        });
+
+        try {
+          const msg = await anthropic.messages.create({
+            model: input.model,
+            max_tokens: 1024,
+            messages: [{ role: "user", content: userMessage }],
+          });
+
+          const fullMessage = msg.content
+            .filter((block) => block.type === 'text')
+            .map((block) => 'text' in block ? block.text : '')
+            .join('');
+
+          const conversation = await saveConversation(userMessage, fullMessage);
+          return { fullMessage, conversation };
+        } catch (err: any) {
+          return { fullMessage: "Error: " + err.message };
+        }
+      }
+
+      if (input.label === "Gemini") {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: userMessage }],
+                  },
+                ],
+              }),
+            },
+          );
+
+          const data = await res.json();
+          const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
+          const conversation = await saveConversation(userMessage, content);
+          return { fullMessage: content, conversation };
+        } catch (err: any) {
+          return { fullMessage: "Error: " + err.message };
+        }
+      }
+
+      return { fullMessage: "Unsupported model label" };
+    }),
 
 
   //-------------------------------Follow up chat with context
@@ -274,10 +274,11 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
         message: z.string(),
         model: z.string(),
         label: z.string(),
+        webSearch: z.boolean().optional().default(false), // ✅ Add webSearch flag
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id; // Enforce user identity
+      const userId = ctx.session.user.id;
 
       // 1️⃣ Fetch chat history
       const messages = await ctx.db.message.findMany({
@@ -286,7 +287,7 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
         take: 20,
       });
 
-      const chatHistory = messages.map((msg) => ({
+      let chatHistory = messages.map((msg) => ({
         role:
           msg.sender === "USER"
             ? "user"
@@ -300,6 +301,38 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
         role: "user",
         content: input.message,
       });
+
+      // 2️⃣ If webSearch is requested, fetch search info
+      if (input.webSearch) {
+        try {
+          const searchRes = await fetch(
+            `https://api.duckduckgo.com/?q=${encodeURIComponent(input.message)}&format=json&no_redirect=1&no_html=1`
+          );
+          const searchData = await searchRes.json();
+
+          const abstract = searchData.AbstractText || "";
+          const relatedTopics = searchData.RelatedTopics?.slice(0, 3).map((t: any) => t.Text).join("\n") || "";
+
+          const webSummary = `# Web Search Summary
+
+${abstract}
+
+${relatedTopics}
+        `;
+
+          // Prepend search summary to context
+          chatHistory.unshift({
+            role: "system",
+            content: `The following info is from a web search related to the user query:\n\n${webSummary}`
+          });
+        } catch (err) {
+          console.error("Web search failed", err);
+          chatHistory.unshift({
+            role: "system",
+            content: `Web search failed. Proceed without it.`
+          });
+        }
+      }
 
       async function generateResponse() {
         if (input.label === "DeepSeek") {
@@ -390,15 +423,14 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
           return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
         }
 
-
         throw new Error("Unsupported provider label");
       }
 
       try {
-        // 2️⃣ Generate AI response
+        // 3️⃣ Generate AI response
         const assistantContent = await generateResponse();
 
-        // 3️⃣ Save user + assistant message + link
+        // 4️⃣ Save messages
         const userMsg = await ctx.db.message.create({
           data: {
             conversationId: input.conversationId,
@@ -424,13 +456,10 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
         });
 
         return { fullMessage: assistantContent };
-
       } catch (err: any) {
         return { fullMessage: "Error: " + (err.message ?? "Unknown error") };
       }
     }),
-
-
 
 
   //-------------------------------Delete a chat
@@ -559,7 +588,7 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
       };
     }),
 
-    renameChat: protectedProcedure
+  renameChat: protectedProcedure
     .input(
       z.object({
         conversationId: z.string(),
