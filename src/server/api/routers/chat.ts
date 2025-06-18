@@ -557,5 +557,43 @@ You are an AI assistant. Your *highest priority* is to return output in **valid,
         updatedUserMessage: input.newUserMessage,
         updatedAssistantMessage: newAssistantContent,
       };
-    })
+    }),
+
+    renameChat: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        newTitle: z.string().min(1).max(100),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { conversationId, newTitle } = input;
+
+      // Ensure the chat belongs to the logged-in user
+      const chat = await ctx.db.conversation.findFirst({
+        where: {
+          id: conversationId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!chat) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Chat not found or you don't have permission to edit it.",
+        });
+      }
+
+      // Update the title
+      const updatedChat = await ctx.db.conversation.update({
+        where: {
+          id: conversationId,
+        },
+        data: {
+          title: newTitle,
+        },
+      });
+
+      return updatedChat;
+    }),
 });

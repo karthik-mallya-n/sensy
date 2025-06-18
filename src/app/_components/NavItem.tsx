@@ -18,8 +18,8 @@ export default function NavItem({
 
   return (
     <div
-      className={`group mb-1 flex cursor-pointer items-center rounded-md p-3 transition-colors duration-200 hover:bg-slate-400/20 ${
-        isActive ? "bg-slate-400/30" : "" // Apply active styling
+      className={`group mb-1 flex cursor-pointer items-center rounded-md p-3 transition-colors duration-200 hover:bg-[#262F2F] ${
+        isActive ? "bg-[#2D3838]" : "" // Apply active styling
       }`}
       onClick={handleClick}
     >

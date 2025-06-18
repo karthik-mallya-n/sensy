@@ -54,11 +54,6 @@ export default function ResponseFormat({ content }: { content: string }) {
 
   return (
     <div className="prose prose-invert max-w-none rounded-lg bg-transparent p-6 px-8 text-white relative">
-      {isTyping && (
-        <div className="absolute top-2 right-2">
-          <div className="inline-block h-3 w-3 animate-pulse rounded-full bg-green-400"></div>
-        </div>
-      )}
 
       <ReactMarkdown
         components={{

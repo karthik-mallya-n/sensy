@@ -13,7 +13,6 @@ import { FiMenu } from "react-icons/fi";
 import { FaChevronLeft } from "react-icons/fa";
 import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
-
 import Sidebar from "./_components/Sidebar";
 import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
@@ -91,6 +90,25 @@ function ChatPage() {
 
   const { data: session } = useSession();
 
+  // Refs to keep latest state in closures
+  const messagesRef = useRef(messages);
+  const currentConversationIdRef = useRef(currentConversationId);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  // Message ID generator (incremental)
+  const messageIdCounter = useRef(Date.now());
+  const getNextMessageId = () => {
+    messageIdCounter.current += 1;
+    return messageIdCounter.current;
+  };
+
   useEffect(() => {
     sidebarMotion.set(navWidth);
   }, [navWidth, sidebarMotion]);
@@ -150,11 +168,15 @@ function ChatPage() {
           return prev;
         });
       }
-      
+
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
-          { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" },
+          {
+            id: getNextMessageId(),
+            text: `${data?.fullMessage}`,
+            sender: "bot",
+          },
         ]);
       }, 1000);
     },
@@ -170,7 +192,11 @@ function ChatPage() {
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
-          { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" },
+          {
+            id: getNextMessageId(),
+            text: `${data?.fullMessage}`,
+            sender: "bot",
+          },
         ]);
       }, 1000);
     },
@@ -187,32 +213,33 @@ function ChatPage() {
   const matchedOption = options.find(
     (opt) => opt.model === selectedOption || opt.label === selectedOption,
   );
-  
-  const addUserMessage = (text: string) => {
-    const userMessage = { id: Date.now(), text, sender: "user" as const };
-    setMessages((prev) => [...prev, userMessage]);
-    
-    const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
-    const labelName = selectedOption ?? "DeepSeek";
-    
-    // If messages are empty or no conversation ID, create a new chat
-    if (messages.length === 0 || !currentConversationId) {
-      createChatMutation.mutate({
-        message: text,
-        model: modelName,
-        label: labelName,
-      });
-    } 
-    // Otherwise, follow up on the existing conversation
-    else {
-      followUpChatMutation.mutate({
-        conversationId: currentConversationId,
-        message: text,
-        model: modelName,
-        label: labelName,
-      });
-    }
-  };
+
+const addUserMessage = (text: string) => {
+  const currentMessages = messagesRef.current;
+  const currentConvId = currentConversationIdRef.current;
+
+  const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
+  const labelName = selectedOption ?? "DeepSeek";
+
+  if (currentMessages.length === 0 || !currentConvId) {
+    createChatMutation.mutate({
+      message: text,
+      model: modelName,
+      label: labelName,
+    });
+  } else {
+    followUpChatMutation.mutate({
+      conversationId: currentConvId,
+      message: text,
+      model: modelName,
+      label: labelName,
+    });
+  }
+
+  const userMessage = { id: getNextMessageId(), text, sender: "user" as const };
+  setMessages((prev) => [...prev, userMessage]);
+};
+
 
   return (
     <MessagesContext.Provider value={{ 
@@ -226,10 +253,10 @@ function ChatPage() {
       <div className={`relative h-screen w-screen bg-[#f5f5f5] dark:bg-[#162020]`} ref={containerRef}>
         <button
           onClick={toggleNavbar}
-          className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-gray-700 dark:text-white shadow-lg transition-colors duration-200 ${
+          className={`cursor-pointer fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-[#A2BEBE] shadow-lg transition-colors duration-200 ${
             showNavbar && isNavExpanded
-              ? "border border-transparent bg-gray-100 dark:bg-[#162020] hover:bg-gray-200 dark:hover:bg-[#2D3838]"
-              : "border border-gray-300 dark:border-[#2D3838] bg-white dark:bg-[#0D1919] hover:bg-gray-100 dark:hover:bg-[#0E2626]"
+              ? "bg-[#162020] hover:bg-[#2D3838] border border-transparent"
+              : "bg-[#0D1919] hover:bg-[#0E2626] border border-[#2D3838]"
           } `}
           title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
           style={{ outline: "none" }}
