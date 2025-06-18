@@ -1,7 +1,7 @@
 import { Listbox, Transition, Portal } from "@headlessui/react";
 import { useState, useRef, useEffect, Fragment } from "react";
 import { FiChevronDown } from "react-icons/fi";
-import { useOption } from "./OptionsContext";
+import { useOption } from "./context/OptionsContext";
 import { options } from "./Options";
 
 export default function ModelSelector() {

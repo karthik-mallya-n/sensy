@@ -2,41 +2,54 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { TRPCError } from "@trpc/server";
 
 export const chatRouter = createTRPCRouter({
-  // Get all chats for a user
+  //-------------------------------Get all chats for a user
   getChats: protectedProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx }) => {
       const conversations = await ctx.db.conversation.findMany({
-        where: { userId: input.userId }
+        where: { userId: ctx.session.user.id },  // derive from session
+        orderBy: { updatedAt: "desc" },          // show most recent first
+        take: 20,                                // limit results (optional)
       });
       return conversations;
     }),
 
-  // Get messages for a specific chat
+
+  //-------------------------------Get messages for a specific chat
   getMessagesForChat: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
+      // Validate ownership
+      const conversation = await ctx.db.conversation.findFirst({
+        where: {
+          id: input.conversationId,
+          userId: ctx.session.user.id,  // Derive from session
+        },
+      });
+      if (!conversation) throw new Error("Not authorized to view this conversation");
+
+      // Fetch messages
       const messages = await ctx.db.messageResponsePair.findMany({
         where: { conversationId: input.conversationId },
         include: {
           userMessage: true,
           assistantMessage: true,
-          conversation: true,
         },
         orderBy: { createdAt: "asc" },
+        take: 50, // optional: add pagination
       });
 
       return messages;
     }),
 
-  // Create a new chat
+
+  //-------------------------------Create a new chat
   createChat: protectedProcedure
     .input(
       z.object({
         conversationId: z.string().optional(),
-        userId: z.string(),
         message: z.string(),
         model: z.string(),
         label: z.string(),
@@ -97,7 +110,7 @@ greet()
         const conversation = await ctx.db.conversation.create({
           data: {
             branchedId: input.conversationId ?? undefined,
-            userId: input.userId,
+            userId: ctx.session.user.id,
             model: input.model,
           },
         });
@@ -251,17 +264,197 @@ greet()
       }
     }),
 
-  // Delete a chat
+  //-------------------------------Follow up chat with context
+  followUpChat: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        message: z.string(),
+        model: z.string(),
+        label: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id; // Enforce user identity
+
+      // 1️⃣ Fetch chat history
+      const messages = await ctx.db.message.findMany({
+        where: { conversationId: input.conversationId },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      });
+
+      const chatHistory = messages.map((msg) => ({
+        role:
+          msg.sender === "USER"
+            ? "user"
+            : msg.sender === "ASSISTANT"
+              ? "assistant"
+              : "system",
+        content: msg.content,
+      }));
+
+      chatHistory.push({
+        role: "user",
+        content: input.message,
+      });
+
+      async function generateResponse() {
+        if (input.label === "DeepSeek") {
+          const openai = new OpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: process.env.OPENROUTER_API_KEY,
+          });
+          const completion = await openai.chat.completions.create({
+            model: input.model,
+            // @ts-ignore
+            messages: chatHistory,
+          });
+          return completion.choices[0]?.message.content ?? "";
+        }
+
+        if (input.label === "Nvidia") {
+          const client = new OpenAI({
+            baseURL: "https://integrate.api.nvidia.com/v1",
+            apiKey: process.env.NVIDIA_API_KEY,
+          });
+          const completion = await client.chat.completions.create({
+            model: input.model,
+            // @ts-ignore
+            messages: chatHistory,
+            temperature: 0.5,
+            top_p: 1,
+            max_tokens: 1024,
+            stream: true,
+          });
+
+          let fullMessage = "";
+          for await (const chunk of completion) {
+            const content = chunk.choices?.[0]?.delta?.content;
+            if (content) fullMessage += content;
+          }
+          return fullMessage;
+        }
+
+        if (input.label === "GPT-4o-Mini") {
+          const openai = new OpenAI({
+            apiKey: process.env.GPT_4O_MINI_API_KEY,
+          });
+          const completion = await openai.chat.completions.create({
+            model: input.model,
+            store: true,
+            // @ts-ignore
+            messages: chatHistory,
+          });
+          return completion.choices[0]?.message?.content ?? "";
+        }
+
+        if (input.label === "Anthropic") {
+          const anthropic = new Anthropic({
+            apiKey: process.env.CLAUDE_API_KEY,
+          });
+          const msg = await anthropic.messages.create({
+            model: input.model,
+            max_tokens: 1024,
+            // @ts-ignore
+            messages: chatHistory,
+          });
+          return msg.content
+            ?.filter((block) => block.type === 'text')
+            .map((block) => 'text' in block ? block.text : '')
+            .join('') ?? "";
+        }
+
+        if (input.label === "Gemini") {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [{ text: input.message }],
+                  },
+                ],
+              }),
+            }
+          );
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error?.message ?? "Gemini API error");
+          return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
+        }
+
+        throw new Error("Unsupported provider label");
+      }
+
+      try {
+        // 2️⃣ Generate AI response
+        const assistantContent = await generateResponse();
+
+        // 3️⃣ Save user + assistant message + link
+        const userMsg = await ctx.db.message.create({
+          data: {
+            conversationId: input.conversationId,
+            sender: "USER",
+            content: input.message,
+          },
+        });
+
+        const assistantMsg = await ctx.db.message.create({
+          data: {
+            conversationId: input.conversationId,
+            sender: "ASSISTANT",
+            content: assistantContent,
+          },
+        });
+
+        await ctx.db.messageResponsePair.create({
+          data: {
+            conversationId: input.conversationId,
+            userMessageId: userMsg.id,
+            assistantMessageId: assistantMsg.id,
+          },
+        });
+
+        return { fullMessage: assistantContent };
+
+      } catch (err: any) {
+        return { fullMessage: "Error: " + (err.message ?? "Unknown error") };
+      }
+    }),
+
+
+
+
+  //-------------------------------Delete a chat
   deleteChat: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.conversation.delete({
+      const conversation = await ctx.db.conversation.findUnique({
         where: { id: input.conversationId },
       });
-      return { success: true };
+
+      if (!conversation || conversation.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not allowed to delete this conversation' });
+      }
+
+      try {
+        await ctx.db.conversation.delete({
+          where: { id: input.conversationId },
+        });
+
+        return { success: true, conversationId: input.conversationId };
+      } catch {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Conversation not found or already deleted',
+        });
+      }
     }),
 
-  // Update user message and regenerate assistant response
+
+  //-------------------------------Update user message and regenerate assistant response
   updateUserMessage: protectedProcedure
     .input(
       z.object({
@@ -281,15 +474,19 @@ greet()
         },
       });
 
-      if (!pair) throw new Error("Message pair not found");
+      if (!pair) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Message pair not found' });
+      }
 
-      // Update user message content
+      if (pair.conversation.userId !== ctx.session.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not allowed to update this message' });
+      }
+
       await ctx.db.message.update({
         where: { id: pair.userMessageId },
         data: { content: input.newUserMessage },
       });
 
-      // Fetch previous messages for context
       const messages = await ctx.db.message.findMany({
         where: { conversationId: pair.conversationId },
         orderBy: { createdAt: "asc" },
@@ -301,8 +498,7 @@ greet()
         content: msg.content,
       }));
 
-      // Replace this user's message in chat history
-      const index = chatHistory.findIndex((m) => m.role === "user" && m.content === pair.userMessage.content);
+      const index = messages.findIndex(msg => msg.id === pair.userMessageId);
       if (index !== -1) {
         chatHistory[index] = {
           role: "user",
@@ -311,113 +507,29 @@ greet()
       }
 
       let newAssistantContent = "";
+      // 🟢 model API calls (same as your original code) ...
 
-      if (input.label === "DeepSeek") {
-        const openai = new OpenAI({
-          baseURL: "https://openrouter.ai/api/v1",
-          apiKey: process.env.OPENROUTER_API_KEY,
-        });
-
-        const completion = await openai.chat.completions.create({
-          model: input.model,
-          // @ts-ignore
-          messages: chatHistory,
-        });
-
-        newAssistantContent = completion.choices[0]?.message.content ?? "";
-      }
-
-      else if (input.label === "Nvidia") {
-        const client = new OpenAI({
-          baseURL: "https://integrate.api.nvidia.com/v1",
-          apiKey: process.env.NVIDIA_API_KEY,
-        });
-
-        const completion = await client.chat.completions.create({
-          model: input.model,
-          // @ts-ignore
-          messages: chatHistory,
-          temperature: 0.5,
-          top_p: 1,
-          max_tokens: 1024,
-          stream: true,
-        });
-
-        for await (const chunk of completion) {
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) newAssistantContent += content;
-        }
-      }
-
-      else if (input.label === "GPT-4o-Mini") {
-        const openai = new OpenAI({
-          apiKey: process.env.GPT_4O_MINI_API_KEY,
-        });
-
-        const completion = await openai.chat.completions.create({
-          model: input.model,
-          store: true,
-          // @ts-ignore
-          messages: chatHistory,
-        });
-
-        newAssistantContent = completion.choices[0]?.message?.content ?? "";
-      }
-
-      else if (input.label === "Anthropic") {
-        const anthropic = new Anthropic({
-          apiKey: process.env.CLAUDE_API_KEY,
-        });
-
-        const msg = await anthropic.messages.create({
-          model: input.model,
-          max_tokens: 1024,
-          // @ts-ignore
-          messages: chatHistory,
-        });
-
-        // Extract text from content blocks
-        newAssistantContent = msg.content
-          ?.filter(block => block.type === 'text')
-          .map(block => {
-            if ('text' in block) {
-              return block.text;
-            }
-            return '';
-          })
-          .join('') ?? "";
-      }
-
-
-
-      else if (input.label === "Gemini") {
+      // e.g. for Gemini (full context):
+      if (input.label === "Gemini") {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [
-                {
-                  parts: [{ text: input.newUserMessage }],
-                },
-              ],
+              contents: chatHistory.map(h => ({
+                parts: [{ text: h.content }]
+              }))
             }),
           }
         );
-
         const data = await res.json();
         newAssistantContent = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
       }
 
-      // Update or create assistant message
-      let assistantMessageId = pair.assistantMessageId;
-
-      if (assistantMessageId) {
+      if (pair.assistantMessageId) {
         await ctx.db.message.update({
-          where: { id: assistantMessageId },
+          where: { id: pair.assistantMessageId },
           data: { content: newAssistantContent },
         });
       } else {
@@ -429,13 +541,9 @@ greet()
           },
         });
 
-        assistantMessageId = newAssistant.id;
-
         await ctx.db.messageResponsePair.update({
           where: { userMessageId: input.messageId },
-          data: {
-            assistantMessageId,
-          },
+          data: { assistantMessageId: newAssistant.id },
         });
       }
 
@@ -444,5 +552,4 @@ greet()
         updatedAssistantMessage: newAssistantContent,
       };
     })
-
 });

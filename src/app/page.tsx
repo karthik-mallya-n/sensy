@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  createContext,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { FiMenu } from "react-icons/fi";
 import { FaChevronLeft } from "react-icons/fa";
@@ -10,8 +17,30 @@ import { api } from "~/trpc/react";
 import Sidebar from "./_components/Sidebar";
 import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
-import { OptionProvider, useOption } from "./_components/OptionsContext";
+import { OptionProvider, useOption } from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
+
+// Define the message type
+export interface Message {
+  id: number;
+  text: string;
+  sender: "user" | "bot";
+}
+
+// Create a context for messages
+export interface MessagesContextType {
+  messages: Message[];
+  setMessages: Dispatch<SetStateAction<Message[]>>;
+  currentConversationId: string | null;
+  setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
+}
+
+export const MessagesContext = createContext<MessagesContextType>({
+  messages: [],
+  setMessages: () => {},
+  currentConversationId: null,
+  setCurrentConversationId: () => {},
+});
 
 export default function Home() {
   return (
@@ -28,9 +57,8 @@ function ChatPage() {
   const [showNavbar, setShowNavbar] = useState(true);
   const [isNavExpanded, setIsNavExpanded] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [messages, setMessages] = useState<
-    { id: number; text: string; sender: "user" | "bot" }[]
-  >([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxSidebarWidth, setMaxSidebarWidth] = useState(0);
@@ -80,9 +108,16 @@ function ChatPage() {
     }
   };
 
+  // Create a new chat
   const createChatMutation = api.chat.createChat.useMutation({
     onSuccess: (data) => {
       console.log("Chat created successfully:", data?.fullMessage);
+      
+      // Store the new conversation ID if available
+      if (data?.conversationId) {
+        setCurrentConversationId(data.conversationId);
+      }
+      
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
@@ -95,6 +130,22 @@ function ChatPage() {
     },
   });
 
+  // Follow up on an existing chat
+  const followUpChatMutation = api.chat.followUpChat.useMutation({
+    onSuccess: (data) => {
+      console.log("Follow-up chat successful:", data?.fullMessage);
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now() + 1, text: `${data?.fullMessage}`, sender: "bot" },
+        ]);
+      }, 1000);
+    },
+    onError: (error) => {
+      console.error("Error following up on chat:", error);
+    },
+  });
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
@@ -103,59 +154,81 @@ function ChatPage() {
   const matchedOption = options.find(
     (opt) => opt.model === selectedOption || opt.label === selectedOption,
   );
+  
   const addUserMessage = (text: string) => {
     const userMessage = { id: Date.now(), text, sender: "user" as const };
     setMessages((prev) => [...prev, userMessage]);
-    console.log(selectedOption, matchedOption?.label);
-    createChatMutation.mutate({
-      userId: session?.user.id ?? "",
-      message: text,
-      model: matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free",
-      label: selectedOption ?? "Deepseek",
-    });
+    
+    const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
+    const labelName = selectedOption ?? "DeepSeek";
+    
+    // If messages are empty or no conversation ID, create a new chat
+    if (messages.length === 0 || !currentConversationId) {
+      createChatMutation.mutate({
+        message: text,
+        model: modelName,
+        label: labelName,
+      });
+    } 
+    // Otherwise, follow up on the existing conversation
+    else {
+      followUpChatMutation.mutate({
+        conversationId: currentConversationId,
+        message: text,
+        model: modelName,
+        label: labelName,
+      });
+    }
   };
 
   return (
-    <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
-      <button
-        onClick={toggleNavbar}
-        className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-white shadow-lg transition-colors duration-200 ${
-          showNavbar && isNavExpanded
-            ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
-            : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
-        } `}
-        title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
-        style={{ outline: "none" }}
-      >
-        {showNavbar && isNavExpanded ? <FaChevronLeft /> : <FiMenu />}
-      </button>
+    <MessagesContext.Provider value={{ 
+      messages, 
+      setMessages, 
+      currentConversationId, 
+      setCurrentConversationId 
+    }}>
+      <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
+        <button
+          onClick={toggleNavbar}
+          className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-white shadow-lg transition-colors duration-200 ${
+            showNavbar && isNavExpanded
+              ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
+              : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
+          } `}
+          title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
+          style={{ outline: "none" }}
+        >
+          {showNavbar && isNavExpanded ? <FaChevronLeft /> : <FiMenu />}
+        </button>
 
-      {showNavbar && (
-        <Sidebar
-          isNavExpanded={isNavExpanded}
+        {showNavbar && (
+          <Sidebar
+            isNavExpanded={isNavExpanded}
+            smoothSidebarWidth={smoothSidebarWidth}
+            toggleNavbar={toggleNavbar}
+          />
+        )}
+
+        {showNavbar && (
+          <ChatResizeHandle
+            navWidth={navWidth}
+            setNavWidth={setNavWidth}
+            sidebarMotion={sidebarMotion}
+            maxSidebarWidth={maxSidebarWidth}
+            minNavWidth={MIN_NAV_WIDTH}
+          />
+        )}
+
+        <ChatContainer
+          messages={messages}
+          addUserMessage={addUserMessage}
+          toggleTheme={toggleTheme}
+          theme={theme}
+          showNavbar={showNavbar}
           smoothSidebarWidth={smoothSidebarWidth}
-          toggleNavbar={toggleNavbar}
         />
-      )}
-
-      {showNavbar && (
-        <ChatResizeHandle
-          navWidth={navWidth}
-          setNavWidth={setNavWidth}
-          sidebarMotion={sidebarMotion}
-          maxSidebarWidth={maxSidebarWidth}
-          minNavWidth={MIN_NAV_WIDTH}
-        />
-      )}
-
-      <ChatContainer
-        messages={messages}
-        addUserMessage={addUserMessage}
-        toggleTheme={toggleTheme}
-        theme={theme}
-        showNavbar={showNavbar}
-        smoothSidebarWidth={smoothSidebarWidth}
-      />
-    </div>
+      </div>
+    </MessagesContext.Provider>
   );
 }
