@@ -18,7 +18,6 @@ import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
 import { OptionProvider, useOption } from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
-import ThemeToggleButton from "./_components/ThemeToggleButton";
 
 // Define the message type
 export interface Message {
@@ -219,7 +218,7 @@ const addUserMessage = (text: string) => {
   const currentConvId = currentConversationIdRef.current;
 
   const modelName = matchedOption?.model ?? "deepseek/deepseek-r1-0528-qwen3-8b:free";
-  const labelName = selectedOption ?? "DeepSeek";
+  const labelName = selectedOption ?? "Gemini";
 
   if (currentMessages.length === 0 || !currentConvId) {
     createChatMutation.mutate({
@@ -291,8 +290,6 @@ const addUserMessage = (text: string) => {
           smoothSidebarWidth={smoothSidebarWidth}
         />
         
-        {/* Add ThemeToggleButton outside other components */}
-        <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
       </div>
     </MessagesContext.Provider>
   );

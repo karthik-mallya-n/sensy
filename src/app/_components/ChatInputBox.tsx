@@ -134,13 +134,13 @@ export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
           <FancyButton />
 
           {/* Attachment button */}
-          <button
+          {/* <button
             type="button"
             className="p-1.5 bg-[#066262] text-[#A2BEBE] hover:text-[#0D1919] cursor-pointer rounded-md hover:bg-[#0DC5C5] active:scale-95 transition-transform duration-150 ease-in-out flex items-center justify-center"
             style={{ width: "32px", height: "32px" }}
           >
             <FiPaperclip className="w-5 h-5" />
-          </button>
+          </button> */}
         </div>
 
         {/* Send button */}
