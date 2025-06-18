@@ -62,24 +62,25 @@ export default function ChatArea({ messages }: { messages: ChatMessage[] }) {
             </div>
           </div>
 
-          {/* Copy button below user message box */}
-          {sender === "user" && (
-            <button
-              onClick={() => handleCopy(text, id)}
-              className="mt-4 ml-312 flex items-center gap-1 rounded-md bg-transparent px-1 text-xs text-gray-300 hover:text-white transition"
-              aria-label="Copy message"
-            >
-              {copiedId === id ? (
-                <>
-                  <CheckIcon className="h-4 w-4 text-white" />
-                </>
-              ) : (
-                <>
-                  <ClipboardIcon className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          )}
+{/* Copy button below user message box */}
+{sender === "user" && (
+  <button
+    onClick={() => handleCopy(text, id)}
+    className="mt-4 ml-312 flex items-center gap-1 rounded-md bg-transparent px-1 text-xs text-gray-300 hover:text-white transition"
+    aria-label="Copy message"
+  >
+    {copiedId === id ? (
+      <>
+        <CheckIcon className="h-4 w-4 text-white" />
+      </>
+    ) : (
+      <>
+        <ClipboardIcon className="h-4 w-4" />
+      </>
+    )}
+  </button>
+)}
+
         </div>
       ))}
 

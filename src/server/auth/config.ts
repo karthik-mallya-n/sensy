@@ -33,7 +33,10 @@ declare module "next-auth" {
  */
 export const authConfig = {
   providers: [
-    DiscordProvider,
+    DiscordProvider({
+      clientId: process.env.DISCORD_CLIENT_ID!,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -57,5 +60,8 @@ export const authConfig = {
         id: user.id,
       },
     }),
+  },
+  pages: {
+    signIn: "/auth/signin", // <- This is your custom sign-in page route
   },
 } satisfies NextAuthConfig;

@@ -69,9 +69,9 @@ export default function ChatInputBox({ onSend }: ChatInputBoxProps) {
   return (
     <div
       ref={boxRef}
-      className="chatbox sticky bottom-7 mb-2 mx-auto bg-[#0D1919] border-[8px] border-[#1F2626]/50 rounded-2xl"
+      className="chatbox sticky bottom-7 mb-4 mx-auto bg-[#0D1919] border-[10px] border-[#A2BEBE]/5 rounded-2xl"
       style={{
-        boxShadow: "0 4px 50px rgba(0,0,0,0.5)",
+        boxShadow: "0 4px 50px rgba(0,0,0,0.2)",
         width: boxWidth,
         maxWidth: "900px",
         boxSizing: "border-box",
