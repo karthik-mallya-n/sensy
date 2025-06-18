@@ -46,7 +46,7 @@ export default function ChatContainer({
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
     >
       <div
-        className={`chatarea h-full pr-2.5 pt-2.5 pb-2.5 flex ${
+        className={`chatarea bg-[#162020] h-full pr-2.5 pt-2.5 pb-2.5 flex ${
           !showNavbar ? "pl-2.5" : ""
         }`}
       >

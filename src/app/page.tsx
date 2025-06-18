@@ -13,12 +13,12 @@ import { FiMenu } from "react-icons/fi";
 import { FaChevronLeft } from "react-icons/fa";
 import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
-
 import Sidebar from "./_components/Sidebar";
 import ChatContainer from "./_components/ChatContainer";
 import ChatResizeHandle from "./_components/ChatResizeHandle";
 import { OptionProvider, useOption } from "./_components/context/OptionsContext";
 import { options } from "./_components/Options";
+import ThemeToggleButton from "./_components/ThemeToggleButton";
 
 // Define the message type
 export interface Message {
@@ -27,12 +27,24 @@ export interface Message {
   sender: "user" | "bot";
 }
 
-// Create a context for messages
+// Define the conversation type
+export interface Conversation {
+  id: string;
+  title: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+  model?: string;
+  // Add other fields as needed
+}
+
+// Create a context for messages and conversations
 export interface MessagesContextType {
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   currentConversationId: string | null;
   setCurrentConversationId: Dispatch<SetStateAction<string | null>>;
+  storedConversations: Conversation[];
+  setStoredConversations: Dispatch<SetStateAction<Conversation[]>>;
 }
 
 export const MessagesContext = createContext<MessagesContextType>({
@@ -40,6 +52,8 @@ export const MessagesContext = createContext<MessagesContextType>({
   setMessages: () => {},
   currentConversationId: null,
   setCurrentConversationId: () => {},
+  storedConversations: [],
+  setStoredConversations: () => {},
 });
 
 export default function Home() {
@@ -59,6 +73,7 @@ function ChatPage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [storedConversations, setStoredConversations] = useState<Conversation[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [maxSidebarWidth, setMaxSidebarWidth] = useState(0);
@@ -112,8 +127,15 @@ function ChatPage() {
     return () => window.removeEventListener("resize", updateMaxSidebar);
   }, []);
 
+  // Apply theme to the document root
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    // Remove both classes first to ensure clean state
+    document.documentElement.classList.remove('light', 'dark');
+    // Add the current theme class
+    document.documentElement.classList.add(theme);
+    
+    // You can also store the preference in localStorage for persistence
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleNavbar = () => {
@@ -131,9 +153,20 @@ function ChatPage() {
   const createChatMutation = api.chat.createChat.useMutation({
     onSuccess: (data) => {
       console.log("Chat created successfully:", data?.fullMessage);
-
-      if (data?.conversationId) {
-        setCurrentConversationId(data.conversationId);
+      
+      // Store the new conversation ID if available
+      if (data?.conversation) {
+        setCurrentConversationId(data.conversation.id);
+        
+        // Add the new conversation to stored conversations
+        setStoredConversations(prev => {
+          // Check if conversation already exists to prevent duplicates
+          const exists = prev.some(conv => conv.id === data.conversation.id);
+          if (!exists) {
+            return [data.conversation, ...prev];
+          }
+          return prev;
+        });
       }
 
       setTimeout(() => {
@@ -209,21 +242,21 @@ const addUserMessage = (text: string) => {
 
 
   return (
-    <MessagesContext.Provider
-      value={{
-        messages,
-        setMessages,
-        currentConversationId,
-        setCurrentConversationId,
-      }}
-    >
-      <div className="relative h-screen w-screen bg-[#162020]" ref={containerRef}>
+    <MessagesContext.Provider value={{ 
+      messages, 
+      setMessages, 
+      currentConversationId, 
+      setCurrentConversationId,
+      storedConversations,
+      setStoredConversations
+    }}>
+      <div className={`relative h-screen w-screen bg-[#f5f5f5] dark:bg-[#162020]`} ref={containerRef}>
         <button
           onClick={toggleNavbar}
-          className={`fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-white shadow-lg transition-colors duration-200 ${
+          className={`cursor-pointer fixed top-6 left-6 z-30 flex h-8 w-8 items-center justify-center rounded-md p-1.5 text-[#A2BEBE] shadow-lg transition-colors duration-200 ${
             showNavbar && isNavExpanded
-              ? "border border-transparent bg-[#162020] hover:bg-[#2D3838]"
-              : "border border-[#2D3838] bg-[#0D1919] hover:bg-[#0E2626]"
+              ? "bg-[#162020] hover:bg-[#2D3838] border border-transparent"
+              : "bg-[#0D1919] hover:bg-[#0E2626] border border-[#2D3838]"
           } `}
           title={showNavbar ? "Collapse Sidebar" : "Open Sidebar"}
           style={{ outline: "none" }}
@@ -257,6 +290,9 @@ const addUserMessage = (text: string) => {
           showNavbar={showNavbar}
           smoothSidebarWidth={smoothSidebarWidth}
         />
+        
+        {/* Add ThemeToggleButton outside other components */}
+        <ThemeToggleButton toggleTheme={toggleTheme} theme={theme} />
       </div>
     </MessagesContext.Provider>
   );

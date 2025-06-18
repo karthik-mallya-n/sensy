@@ -4,17 +4,10 @@ import NewChatButton from "./NewChatButton";
 import SearchBar from "./SearchBar";
 import ProfileFooter from "./ProfileFooter";
 import { useSession } from "next-auth/react";
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useContext, useState } from "react";
 import { api } from "~/trpc/react";
-import { X } from "lucide-react";
 import { MessagesContext } from "../page";
-
-// You might need to define this interface based on your actual data structure
-interface Conversation {
-  id: string;
-  title: string | null;
-  // Add other fields that exist in your conversation model
-}
+import { FaTrash, FaPen } from "react-icons/fa";
 
 export default function Sidebar({
   isNavExpanded,
@@ -26,47 +19,79 @@ export default function Sidebar({
   toggleNavbar: () => void;
 }) {
   const { data: session } = useSession();
-  const [storedConversations, setStoredConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  
-  // Access the messages context
-  const { messages, setMessages } = useContext(MessagesContext);
 
-  // Fetch conversations query
-  const { data: conversations, refetch } = api.chat.getChats.useQuery();
+  const {
+    messages,
+    setMessages,
+    currentConversationId,
+    setCurrentConversationId,
+    storedConversations,
+    setStoredConversations,
+  } = useContext(MessagesContext);
 
-  // Query to get messages for selected conversation
-  const getMessagesQuery = api.chat.getMessagesForChat.useQuery(
-    { conversationId: selectedConversation || "" },
-    { 
-      enabled: !!selectedConversation,
-      onSuccess: (data) => {
-        console.log("Fetched messages for conversation:", data);
-      }
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
+  const [editedTitle, setEditedTitle] = useState("");
+
+  const { data: conversations, refetch } = api.chat.getChats.useQuery(
+    { userId: session?.user.id || "" },
+    {
+      enabled: !!session?.user.id,
     }
   );
 
-  // Delete chat mutation
+  const getMessagesQuery = api.chat.getMessagesForChat.useQuery(
+    { conversationId: currentConversationId || "" },
+    {
+      enabled: !!currentConversationId,
+      onSuccess: (data) => {
+        console.log("Fetched messages for conversation:", data);
+      },
+    }
+  );
+
   const deleteChatMutation = api.chat.deleteChat.useMutation({
     onSuccess: (_, variables) => {
-      // If the deleted conversation was selected, clear the selection
-      if (variables.conversationId === selectedConversation) {
-        setSelectedConversation(null);
+      if (variables.conversationId === currentConversationId) {
+        setCurrentConversationId(null);
+        setMessages([]);
       }
+      setStoredConversations((prev) =>
+        prev.filter((chat) => chat.id !== variables.conversationId)
+      );
       refetch();
     },
   });
 
-  // Handle delete chat
+  const renameChatMutation = api.chat.renameChat.useMutation({
+    onSuccess: (updatedChat) => {
+      setStoredConversations((prev) =>
+        prev.map((chat) =>
+          chat.id === updatedChat.id
+            ? { ...chat, title: updatedChat.title }
+            : chat
+        )
+      );
+    },
+  });
+
   const handleDeleteChat = (chatId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     deleteChatMutation.mutate({ conversationId: chatId });
-    setStoredConversations((prev) => prev.filter((chat) => chat.id !== chatId));
   };
 
-  // Handle conversation selection
+  const handleRenameSubmit = (chatId: string) => {
+    if (editedTitle.trim()) {
+      renameChatMutation.mutate({
+        conversationId: chatId,
+        newTitle: editedTitle.trim(),
+      });
+    }
+    setRenamingChatId(null);
+    setEditedTitle("");
+  };
+
   const handleSelectConversation = (conversationId: string) => {
-    setSelectedConversation(conversationId);
+    setCurrentConversationId(conversationId);
   };
 
   useEffect(() => {
@@ -79,38 +104,28 @@ export default function Sidebar({
     if (conversations) {
       console.log("Fetched conversations:", conversations);
       setStoredConversations(conversations);
-      
-      // If there are conversations but none selected, select the first one
-      if (conversations.length > 0 && !selectedConversation) {
-        setSelectedConversation(conversations[0].id);
-      }
     }
-  }, [conversations, selectedConversation]);
+  }, [conversations, setStoredConversations]);
 
-  // Effect to update messages when selected conversation changes
   useEffect(() => {
-    if (selectedConversation && getMessagesQuery.data) {
-      // Transform the messages from the API format to the format expected by the UI
-      const formattedMessages = getMessagesQuery.data.map((messageResponsePair, index) => {
-        // Each pair has userMessage and assistantMessage
-        return [
+    if (currentConversationId && getMessagesQuery.data) {
+      const formattedMessages = getMessagesQuery.data
+        .map((messageResponsePair, index) => [
           {
             id: index * 2,
             text: messageResponsePair.userMessage.content,
-            sender: "user" as const
+            sender: "user" as const,
           },
           {
             id: index * 2 + 1,
             text: messageResponsePair.assistantMessage?.content || "No response",
-            sender: "bot" as const
-          }
-        ];
-      }).flat();
-
-      // Update the messages in the context
+            sender: "bot" as const,
+          },
+        ])
+        .flat();
       setMessages(formattedMessages);
     }
-  }, [selectedConversation, getMessagesQuery.data, setMessages]);
+  }, [currentConversationId, getMessagesQuery.data, setMessages]);
 
   return (
     <motion.div
@@ -123,9 +138,9 @@ export default function Sidebar({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="overflow-hidden text-xl font-bold text-ellipsis whitespace-nowrap text-white"
+              className="overflow-hidden text-2xl font-bold text-ellipsis whitespace-nowrap text-white"
             >
-              <span className="text-cyan-400">🧠</span> Sensy
+              Sensy
             </motion.div>
           )}
         </div>
@@ -134,7 +149,7 @@ export default function Sidebar({
           <NewChatButton
             isNavExpanded={isNavExpanded}
             clickMe={() => {
-              setSelectedConversation(null);
+              setCurrentConversationId(null);
               setMessages([]);
             }}
           />
@@ -144,44 +159,73 @@ export default function Sidebar({
           <SearchBar isNavExpanded={isNavExpanded} />
         </div>
 
-        {/* Scrollable chats container */}
         <div className="custom-scrollbar flex-1 overflow-y-auto px-2">
           {storedConversations.map((chat) => (
-            <div 
-              key={chat.id} 
+            <div
+              key={chat.id}
               className="group relative"
               onClick={() => handleSelectConversation(chat.id)}
             >
-              <NavItem
-                text={chat.title || "Chat"}
-                isExpanded={isNavExpanded}
-                toggleNavbar={toggleNavbar}
-                isActive={selectedConversation === chat.id}
-              />
-              {isNavExpanded ? (
-                <button
-                  onClick={(e) => handleDeleteChat(chat.id, e)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-700 hover:text-red-500"
-                  aria-label="Delete chat"
-                >
-                  <X size={16} />
-                </button>
+              {renamingChatId === chat.id ? (
+<div
+  className={`flex items-center px-4 py-3.5 rounded cursor-pointer text-white bg-[#2D3838] ${
+    currentConversationId === chat.id ? "bg-[#334040]" : ""
+  }`}
+>
+  <input
+    className="flex-1 bg-transparent text-sm text-white outline-none"
+    value={editedTitle}
+    autoFocus
+    onChange={(e) => setEditedTitle(e.target.value)}
+    onBlur={() => handleRenameSubmit(chat.id)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        handleRenameSubmit(chat.id);
+      }
+    }}
+  />
+</div>
+
               ) : (
+                <NavItem
+                  text={chat.title || "Chat"}
+                  isExpanded={isNavExpanded}
+                  toggleNavbar={toggleNavbar}
+                  isActive={currentConversationId === chat.id}
+                />
+              )}
+
+              {/* Rename button */}
+              {isNavExpanded && (
                 <button
-                  onClick={(e) => handleDeleteChat(chat.id, e)}
-                  className="absolute top-1/2 right-0 -translate-y-1/2 rounded-full p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-700 hover:text-red-500"
-                  aria-label="Delete chat"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRenamingChatId(chat.id);
+                    setEditedTitle(chat.title || "");
+                  }}
+                  className="cursor-pointer absolute top-1/2 right-8 -translate-y-1/2 rounded-full p-3 text-[#4A6262] opacity-0 transition-opacity group-hover:opacity-100 hover:text-[#78ACAC]"
+                  aria-label="Rename chat"
                 >
-                  <X size={14} />
+                  <FaPen size={16} />
                 </button>
               )}
+
+              {/* Delete button */}
+              <button
+                onClick={(e) => handleDeleteChat(chat.id, e)}
+                className={`absolute top-1/2 ${isNavExpanded ? "right-3" : "right-0"} cursor-pointer -translate-y-1/2 rounded-full p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500`}
+                aria-label="Delete chat"
+              >
+                <FaTrash size={isNavExpanded ? 16 : 12} />
+              </button>
             </div>
           ))}
-          
-          {/* Loading or empty state */}
+
           {storedConversations.length === 0 && (
-            <div className="text-center text-gray-500 mt-4">
-              {getMessagesQuery.isLoading ? "Loading conversations..." : "No conversations yet"}
+            <div className="mt-2 text-center text-gray-400">
+              {getMessagesQuery.isLoading
+                ? "Loading conversations..."
+                : "No conversations yet"}
             </div>
           )}
         </div>

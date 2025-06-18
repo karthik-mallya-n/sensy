@@ -11,7 +11,6 @@ export const chatRouter = createTRPCRouter({
       const conversations = await ctx.db.conversation.findMany({
         where: { userId: ctx.session.user.id },  // derive from session
         orderBy: { updatedAt: "desc" },          // show most recent first
-        take: 20,                                // limit results (optional)
       });
       return conversations;
     }),
@@ -139,6 +138,7 @@ greet()
             assistantMessageId: assistant.id,
           },
         });
+        return conversation;
       }
 
       if (input.label === "DeepSeek") {
@@ -157,9 +157,12 @@ greet()
           });
 
           const assistantMsg = completion.choices[0]?.message.content ?? "";
-          await saveConversation(input.message, assistantMsg);
+          const conversation = await saveConversation(input.message, assistantMsg);
 
-          return { fullMessage: assistantMsg };
+          return {
+            fullMessage: assistantMsg,
+            conversation: conversation
+          };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -190,8 +193,8 @@ greet()
             if (content) fullMessage += content;
           }
 
-          await saveConversation(input.message, fullMessage);
-          return { fullMessage };
+          const conversation = await saveConversation(input.message, fullMessage);
+          return { fullMessage: fullMessage, conversation: conversation };
         } catch (error: any) {
           return { fullMessage: "Error: " + error.message };
         }
@@ -208,8 +211,11 @@ greet()
             store: true,
             messages: [{ role: "user", content: input.message }],
           });
-
-          return { fullMessage: completion.choices[0]?.message };
+          const conversation = await saveConversation(input.message, completion.choices[0]?.message.content || "No response");
+          return {
+            fullMessage: completion.choices[0]?.message,
+            conversation: conversation
+          };
         } catch (err: any) {
           return { fullMessage: "Error : " + err.message };
         }
@@ -228,6 +234,13 @@ greet()
             max_tokens: 1024,
             messages: [{ role: "user", content: input.message }],
           });
+
+          // const conversation = await saveConversation(input.message, msg?.content);
+
+          const fullMessage = msg.content
+            .filter((block) => block.type === 'text')
+            .map((block) => 'text' in block ? block.text : '')
+            .join('');
 
           return { fullMessage: msg };
         } catch (err: any) {
@@ -256,10 +269,15 @@ greet()
 
           const data = await res.json();
           const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
-          await saveConversation(input.message, content);
-          return { fullMessage: content }
+          const conversation = await saveConversation(input.message, content);
+          return {
+            fullMessage: content,
+            conversation: conversation
+          }
         } catch (err: any) {
-          return { fullMessage: err.message }
+          return {
+            fullMessage: err.message
+          }
         }
       }
     }),
@@ -366,24 +384,28 @@ greet()
         }
 
         if (input.label === "Gemini") {
+          const geminiContents = chatHistory.map((msg) => ({
+            role: msg.role === "assistant" ? "model" : msg.role,
+            parts: [{ text: msg.content }],
+          }));
+
           const res = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                contents: [
-                  {
-                    parts: [{ text: input.message }],
-                  },
-                ],
+                contents: geminiContents,
               }),
             }
           );
+
           const data = await res.json();
           if (!res.ok) throw new Error(data.error?.message ?? "Gemini API error");
+
           return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "No Content";
         }
+
 
         throw new Error("Unsupported provider label");
       }
@@ -551,5 +573,43 @@ greet()
         updatedUserMessage: input.newUserMessage,
         updatedAssistantMessage: newAssistantContent,
       };
-    })
+    }),
+
+    renameChat: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        newTitle: z.string().min(1).max(100),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { conversationId, newTitle } = input;
+
+      // Ensure the chat belongs to the logged-in user
+      const chat = await ctx.db.conversation.findFirst({
+        where: {
+          id: conversationId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!chat) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Chat not found or you don't have permission to edit it.",
+        });
+      }
+
+      // Update the title
+      const updatedChat = await ctx.db.conversation.update({
+        where: {
+          id: conversationId,
+        },
+        data: {
+          title: newTitle,
+        },
+      });
+
+      return updatedChat;
+    }),
 });
